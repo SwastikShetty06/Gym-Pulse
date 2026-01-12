@@ -12,7 +12,7 @@ Gym Pulse is a full-stack MERN application designed for serious athletes to trac
 - **PR Vault**: Track and visualize your Personal Records with a beautiful card interface.
 - **Data Visualization**: Interactive charts for workout intensity and progress.
 
-### 🤝 Social Hub (New!)
+### 🤝 Social Hub 
 - **Network**: Friends, Followers, and Following lists.
 - **Discovery**: Search for other athletes by name or email.
 - **Profile Peeking**: View detailed profiles of your friends, including their stats, PRs, and schedules.
