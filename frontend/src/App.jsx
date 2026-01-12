@@ -13,7 +13,7 @@ function App() {
     const { user } = useAuthStore()
 
     return (
-        <Router>
+        <Router basename={import.meta.env.BASE_URL}>
             <div className="app-container">
                 {user && <Navbar />}
                 <main className="main-content">
