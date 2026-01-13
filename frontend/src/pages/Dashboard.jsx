@@ -36,6 +36,13 @@ const Dashboard = () => {
                     let s = 0
                     let curr = new Date()
                     curr.setHours(0, 0, 0, 0)
+                    
+                    // Fix: If today is not attended, start checking from yesterday
+                    // This prevents "Today" from counting as a miss immediately
+                    if (!attSet.has(curr.toDateString())) {
+                        curr.setDate(curr.getDate() - 1)
+                    }
+
                     let misses = 0
                     let window = []
 
