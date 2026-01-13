@@ -75,52 +75,77 @@ const styles = {
         justifyContent: 'center',
         alignItems: 'center',
         minHeight: '100vh',
-        background: 'radial-gradient(circle at top left, #1a1a2e, #0a0a0c)'
+        background: '#09090b',
+        backgroundImage: `
+            radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.15) 0px, transparent 50%),
+            radial-gradient(at 100% 0%, rgba(168, 85, 247, 0.15) 0px, transparent 50%),
+            radial-gradient(at 100% 100%, rgba(59, 130, 246, 0.15) 0px, transparent 50%),
+            radial-gradient(at 0% 100%, rgba(236, 72, 153, 0.15) 0px, transparent 50%)
+        `,
+        backgroundSize: '100% 100%',
     },
     card: {
         width: '100%',
-        maxWidth: '400px',
-        padding: '2.5rem',
+        maxWidth: '420px',
+        padding: '3rem',
+        borderRadius: '24px',
+        background: 'rgba(255, 255, 255, 0.03)',
+        backdropFilter: 'blur(20px)',
+        WebkitBackdropFilter: 'blur(20px)',
+        border: '1px solid rgba(255, 255, 255, 0.08)',
+        boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
     },
     header: {
         textAlign: 'center',
-        marginBottom: '2rem'
+        marginBottom: '2.5rem'
     },
     form: {
         display: 'flex',
         flexDirection: 'column',
-        gap: '1rem'
+        gap: '1.25rem'
     },
     inputGroup: {
         position: 'relative',
         display: 'flex',
-        alignItems: 'center'
+        alignItems: 'center',
+        transition: 'transform 0.2s'
     },
     icon: {
         position: 'absolute',
-        left: '1rem',
-        color: 'var(--text-secondary)'
+        left: '1.25rem',
+        color: 'var(--text-secondary)',
+        zIndex: 10
     },
     input: {
         width: '100%',
-        padding: '0.875rem 1rem 0.875rem 3rem',
-        background: 'var(--bg-tertiary)',
-        border: '1px solid var(--glass-border)',
-        borderRadius: '12px',
+        padding: '1rem 1rem 1rem 3.5rem',
+        background: 'rgba(0, 0, 0, 0.2)',
+        border: '1px solid rgba(255, 255, 255, 0.1)',
+        borderRadius: '16px',
         color: 'white',
-        fontSize: '1rem'
+        fontSize: '1rem',
+        transition: 'all 0.3s ease',
+        outline: 'none'
     },
     button: {
         width: '100%',
-        marginTop: '1rem',
+        marginTop: '0.5rem',
         display: 'flex',
         justifyContent: 'center',
-        alignItems: 'center'
+        alignItems: 'center',
+        padding: '1rem',
+        borderRadius: '16px',
+        fontWeight: 600,
+        fontSize: '1rem',
+        letterSpacing: '0.5px'
     },
     error: {
-        color: 'var(--danger)',
+        color: '#ef4444',
         fontSize: '0.875rem',
-        textAlign: 'center'
+        textAlign: 'center',
+        background: 'rgba(239, 68, 68, 0.1)',
+        padding: '0.75rem',
+        borderRadius: '12px'
     }
 }
 

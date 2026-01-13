@@ -16,7 +16,7 @@ function App() {
         <Router basename={import.meta.env.BASE_URL}>
             <div className="app-container">
                 {user && <Navbar />}
-                <main className="main-content">
+                <main className="main-content" style={{ paddingLeft: !user ? '0' : '260px' }}>
                     <Routes>
                         <Route path="/login" element={!user ? <Login /> : <Navigate to="/" />} />
                         <Route path="/register" element={!user ? <Register /> : <Navigate to="/" />} />
