@@ -44,7 +44,7 @@ const FriendProfileModal = ({ friend, onClose }) => {
                 <button style={styles.closeBtn} onClick={onClose}><X size={24} /></button>
 
                 <div style={styles.modalHeader}>
-                    <div style={styles.largeAvatar}>{friend.user.name[0]}</div>
+                    <div style={styles.largeAvatar}>{friend.user.name ? friend.user.name[0] : '?'}</div>
                     <div>
                         <h2 style={{ fontSize: '2rem' }}>{friend.user.name}</h2>
                         <p style={{ color: 'var(--accent-primary)', fontWeight: 600 }}>Elite Performance Profile</p>

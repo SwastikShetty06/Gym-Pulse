@@ -249,7 +249,7 @@ const MyGym = () => {
                                 style={{ ...styles.memberRow, cursor: 'pointer' }}
                                 onClick={() => handleViewProfile(m._id)}
                             >
-                                <div style={styles.miniAvatar}>{m.name[0]}</div>
+                                <div style={styles.miniAvatar}>{m.name ? m.name[0] : '?'}</div>
                                 <p style={{ fontWeight: 600 }}>{m.name}</p>
                                 {gym.activeCheckins.some(c => c.user._id === m._id) && (
                                     <span style={styles.onlineBadge}>● In Gym</span>
