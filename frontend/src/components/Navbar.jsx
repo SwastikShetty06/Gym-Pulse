@@ -276,7 +276,7 @@ if (typeof window !== 'undefined') {
                 margin: 0 auto !important;
             }
             .nav-link.active .icon-box svg { color: var(--accent-primary) !important; }
-            .nav-link .link-text { display: block !important; font-size: 0.65rem !important; text-align: center !important; }
+            .nav-link .link-text { display: none !important; }
             .nav-link.active .link-text { color: white !important; }
         }
     `

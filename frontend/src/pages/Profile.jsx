@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react'
 import axios from 'axios'
 import { useAuthStore } from '../store/authStore'
-import { User, Mail, Award, Settings, Shield, Zap, Target } from 'lucide-react'
+import { User, Mail, Award, Settings, Shield, Zap, Target, LogOut } from 'lucide-react'
 
 const Profile = () => {
-    const { user, token } = useAuthStore()
+    const { user, token, logout } = useAuthStore()
     const [prs, setPrs] = useState([])
     const [lib, setLib] = useState([])
     const [loading, setLoading] = useState(true)
@@ -166,7 +166,12 @@ const Profile = () => {
                     </div>
                 </div>
             </div>
-        </div>
+
+            <button onClick={logout} className="hover-lift" style={styles.logoutBtnMobile}>
+                <LogOut size={20} />
+                Sign Out
+            </button>
+        </div >
     )
 }
 
@@ -335,6 +340,22 @@ const styles = {
         background: 'rgba(0,0,0,0.2)',
         borderRadius: '16px',
         border: '1px dashed var(--glass-border)'
+    },
+    logoutBtnMobile: {
+        marginTop: '2rem',
+        width: '100%',
+        padding: '1rem',
+        borderRadius: '16px',
+        background: 'rgba(239, 68, 68, 0.1)',
+        color: 'var(--danger)',
+        border: '1px solid rgba(239, 68, 68, 0.2)',
+        fontSize: '1rem',
+        fontWeight: 600,
+        cursor: 'pointer',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: '0.75rem'
     }
 }
 
