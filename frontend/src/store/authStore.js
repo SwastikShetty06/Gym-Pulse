@@ -36,5 +36,21 @@ export const useAuthStore = create((set) => ({
     logout: () => {
         localStorage.removeItem('token')
         set({ user: null, token: null })
+    },
+
+    checkAuth: async () => {
+        const token = localStorage.getItem('token')
+        if (!token) return
+
+        set({ loading: true })
+        try {
+            axios.defaults.headers.common['x-auth-token'] = token
+            const res = await axios.get('/api/auth/user')
+            set({ user: res.data, loading: false })
+        } catch (err) {
+            console.error('Auth check failed', err)
+            localStorage.removeItem('token')
+            set({ user: null, token: null, loading: false })
+        }
     }
 }))

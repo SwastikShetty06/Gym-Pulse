@@ -13,6 +13,7 @@ const UserSchema = new mongoose.Schema({
         type: { type: String, enum: ['incoming', 'outgoing'] },
         status: { type: String, enum: ['pending', 'accepted', 'rejected'], default: 'pending' }
     }],
+    gym: { type: mongoose.Schema.Types.ObjectId, ref: 'Gym', default: null },
     createdAt: { type: Date, default: Date.now }
 });
 

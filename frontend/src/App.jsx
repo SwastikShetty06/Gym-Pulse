@@ -7,10 +7,19 @@ import Schedule from './pages/Schedule'
 import Attendance from './pages/Attendance'
 import Profile from './pages/Profile'
 import Social from './pages/Social'
+import MyGym from './pages/MyGym'
 import { useAuthStore } from './store/authStore'
 
+import { useEffect } from 'react'
+
 function App() {
-    const { user } = useAuthStore()
+    const { user, checkAuth, loading } = useAuthStore()
+
+    useEffect(() => {
+        checkAuth()
+    }, [])
+
+    if (loading) return <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-primary)', color: 'white' }}>Loading Pulse...</div>
 
     return (
         <Router basename={import.meta.env.BASE_URL}>
@@ -25,6 +34,7 @@ function App() {
                         <Route path="/attendance" element={user ? <Attendance /> : <Navigate to="/login" />} />
                         <Route path="/social" element={user ? <Social /> : <Navigate to="/login" />} />
                         <Route path="/profile" element={user ? <Profile /> : <Navigate to="/login" />} />
+                        <Route path="/my-gym" element={user ? <MyGym /> : <Navigate to="/login" />} />
                     </Routes>
                 </main>
             </div>

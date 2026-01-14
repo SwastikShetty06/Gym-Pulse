@@ -22,6 +22,7 @@ app.use('/api/attendance', require('./routes/attendance'));
 app.use('/api/exercises', require('./routes/exercises'));
 app.use('/api/prs', require('./routes/prs'));
 app.use('/api/social', require('./routes/social'));
+app.use('/api/gyms', require('./routes/gyms'));
 
 app.get('/', (req, res) => {
     res.send('Gym Pulse API is running...');

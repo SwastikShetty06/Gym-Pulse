@@ -15,7 +15,7 @@ router.post('/register', async (req, res) => {
         await user.save();
 
         const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
-        res.json({ token, user: { id: user._id, name: user.name, email: user.email } });
+        res.json({ token, user: { id: user._id, name: user.name, email: user.email, gym: user.gym } });
     } catch (err) {
         console.error('Registration error:', err);
         res.status(500).json({ message: 'Server error' });
@@ -33,10 +33,21 @@ router.post('/login', async (req, res) => {
         if (!isMatch) return res.status(400).json({ message: 'Invalid credentials' });
 
         const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
-        res.json({ token, user: { id: user._id, name: user.name, email: user.email } });
+        res.json({ token, user: { id: user._id, name: user.name, email: user.email, gym: user.gym } });
     } catch (err) {
         console.error('Login error:', err);
         res.status(500).json({ message: 'Server error' });
+    }
+});
+
+// Get Current User
+router.get('/user', require('../middleware/auth'), async (req, res) => {
+    try {
+        const user = await User.findById(req.user.id).select('-password');
+        res.json(user);
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).send('Server Error');
     }
 });
 

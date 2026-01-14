@@ -322,3 +322,39 @@ button {
         text-align: center;
     }
 }
+
+/* 🏰 MyGym Page Mobile Optimization */
+@media (max-width: 1024px) {
+    .gym-container .bento-grid {
+        grid-template-columns: repeat(2, 1fr) !important;
+    }
+
+    .gym-container .bento-grid>div {
+        grid-column: span 2 !important;
+    }
+}
+
+@media (max-width: 768px) {
+    .gym-container {
+        padding: 1.5rem 1rem !important;
+        padding-bottom: 90px !important;
+    }
+
+    .gym-container h1 {
+        font-size: 2rem !important;
+    }
+
+    .gym-container .bento-grid {
+        grid-template-columns: 1fr !important;
+    }
+
+    .gym-container .bento-grid>div {
+        grid-column: span 1 !important;
+    }
+
+    .gym-container .btn-primary,
+    .gym-container .glass>button {
+        width: 100% !important;
+        justify-content: center !important;
+    }
+}

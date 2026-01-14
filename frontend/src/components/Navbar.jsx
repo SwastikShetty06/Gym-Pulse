@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { LayoutDashboard, Calendar, ClipboardCheck, User, LogOut, Dumbbell, Zap } from 'lucide-react'
+import { LayoutDashboard, Calendar, ClipboardCheck, User, LogOut, Dumbbell, Zap, MapPin } from 'lucide-react'
 import { useAuthStore } from '../store/authStore'
 
 const Navbar = () => {
@@ -10,6 +10,7 @@ const Navbar = () => {
         { path: '/schedule', name: 'Schedule', icon: Calendar },
         { path: '/attendance', name: 'Progress', icon: ClipboardCheck },
         { path: '/social', name: 'Social', icon: Zap },
+        { path: '/my-gym', name: 'Clan', icon: MapPin },
         { path: '/profile', name: 'Profile', icon: User },
     ]
 
