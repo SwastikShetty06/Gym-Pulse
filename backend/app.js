@@ -15,14 +15,29 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
-app.options('*', cors(corsOptions)); // Enable pre-flight for all routes
+app.options(/.*/, cors(corsOptions)); // Enable pre-flight for all routes with RegExp
 
 app.use(express.json());
 
 // MongoDB Connection
-mongoose.connect(process.env.MONGODB_URI)
-    .then(() => console.log('Connected to MongoDB'))
-    .catch(err => console.error('Could not connect to MongoDB', err));
+// MongoDB Connection
+if (!process.env.MONGODB_URI) {
+    console.error('FATAL ERROR: MONGODB_URI is not defined.');
+}
+
+let isConnected = false;
+const connectDB = async () => {
+    if (isConnected) return;
+    try {
+        await mongoose.connect(process.env.MONGODB_URI);
+        isConnected = true;
+        console.log('Connected to MongoDB');
+    } catch (err) {
+        console.error('Could not connect to MongoDB', err);
+    }
+};
+
+connectDB();
 
 // Routes
 app.use('/api/auth', require('./routes/auth'));
@@ -37,8 +52,10 @@ app.get('/', (req, res) => {
     res.send('Gym Pulse API is running...');
 });
 
-app.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`);
-});
+if (process.env.NODE_ENV !== 'production') {
+    app.listen(PORT, () => {
+        console.log(`Server is running on port ${PORT}`);
+    });
+}
 
 module.exports = app;
