@@ -58,7 +58,7 @@ const Navbar = () => {
                         <Zap size={14} fill="white" color="white" />
                     </div>
                     <div style={styles.userInfo} className="user-info">
-                        <p style={styles.userName}>{user?.name.split(' ')[0]}</p>
+                        <p style={styles.userName}>{user?.name ? user.name.split(' ')[0] : 'Member'}</p>
                         <p style={styles.userRole}>Elite Plan</p>
                     </div>
                 </div>

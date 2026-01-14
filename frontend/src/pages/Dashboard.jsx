@@ -36,7 +36,7 @@ const Dashboard = () => {
                     let s = 0
                     let curr = new Date()
                     curr.setHours(0, 0, 0, 0)
-                    
+
                     // Fix: If today is not attended, start checking from yesterday
                     // This prevents "Today" from counting as a miss immediately
                     if (!attSet.has(curr.toDateString())) {
@@ -109,7 +109,7 @@ const Dashboard = () => {
             <header style={styles.header}>
                 <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginBottom: '0.5rem' }}>{greeting()},</p>
                 <h1 style={{ fontSize: '3rem', lineHeight: 1 }}>
-                    <span className="gradient-text">{user?.name.split(' ')[0]}</span>
+                    <span className="gradient-text">{user?.name ? user.name.split(' ')[0] : 'Warrior'}</span>
                 </h1>
                 <p style={{ color: 'var(--text-secondary)', marginTop: '0.5rem' }}>
                     {streak > 5 ? `You're on a ${streak}-day roll! Keep it up.` : "Let's crush today's goals!"}
