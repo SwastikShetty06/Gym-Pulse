@@ -258,19 +258,4 @@ const styles = {
     }
 }
 
-// Inject mobile styles for Schedule
-if (typeof window !== 'undefined') {
-    const scheduleStyles = document.createElement("style")
-    scheduleStyles.innerText = `
-        @media (max-width: 768px) {
-            .schedule-container { padding: 1rem !important; padding-bottom: 90px !important; }
-            .day-selector::-webkit-scrollbar { display: none; }
-            .planner-card { padding: 1.25rem !important; }
-            .ex-main { flex-direction: column !important; align-items: stretch !important; gap: 1rem !important; }
-            .ex-stats { justify-content: space-between !important; }
-        }
-    `
-    document.head.appendChild(scheduleStyles)
-}
-
 export default Schedule

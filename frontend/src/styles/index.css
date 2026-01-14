@@ -150,3 +150,175 @@ button {
         padding-bottom: 80px;
     }
 }
+
+/* 📱 Mobile Optimization */
+@media (max-width: 1024px) {
+    .social-container .bento-grid {
+        grid-template-columns: repeat(2, 1fr) !important;
+    }
+
+    .social-container .bento-grid>div {
+        grid-column: span 2 !important;
+    }
+}
+
+@media (max-width: 768px) {
+    .social-container {
+        padding: 1.5rem 1rem !important;
+        padding-bottom: 100px !important;
+    }
+
+    .social-container h1 {
+        font-size: 2rem !important;
+    }
+
+    .social-container .bento-grid {
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 1.5rem !important;
+    }
+
+    .social-container .bento-grid>div {
+        width: 100% !important;
+        grid-column: auto !important;
+    }
+
+    /* Friend Profile Modal Full Screen */
+    .social-modal-overlay {
+        padding: 0 !important;
+        background: var(--bg-primary) !important;
+        align-items: flex-start !important;
+    }
+
+    .social-modal-content.glass.radial-glow {
+        width: 100% !important;
+        max-width: 100% !important;
+        height: 100% !important;
+        max-height: 100% !important;
+        border-radius: 0 !important;
+        border: none !important;
+        margin: 0 !important;
+        overflow-y: auto !important;
+        padding: 1.5rem 1rem !important;
+        background: transparent !important;
+        box-shadow: none !important;
+    }
+
+    .modal-stats-mobile {
+        display: grid !important;
+        grid-template-columns: 1fr 1fr !important;
+        gap: 0.75rem !important;
+        padding: 1rem !important;
+    }
+
+    .modal-stats-mobile>div:last-child {
+        grid-column: span 2 !important;
+    }
+
+    .mini-stat-mobile {
+        flex-direction: column !important;
+        align-items: flex-start !important;
+        gap: 0.5rem !important;
+        background: rgba(255, 255, 255, 0.03);
+        padding: 0.75rem;
+        border-radius: 12px;
+    }
+
+    .schedule-row-mobile {
+        flex-direction: column !important;
+        align-items: flex-start !important;
+        gap: 0.75rem !important;
+    }
+
+    .schedule-row-mobile button {
+        width: 100% !important;
+        text-align: center !important;
+        justify-content: center !important;
+    }
+
+    /* Stack buttons in user rows */
+    .user-row-actions {
+        flex-direction: column !important;
+    }
+}
+
+/* 👤 Profile Page Mobile Optimization */
+@media (max-width: 1024px) {
+    .profile-container .bento-grid {
+        grid-template-columns: repeat(2, 1fr) !important;
+    }
+
+    .profile-container .bento-grid>div {
+        grid-column: span 2 !important;
+    }
+}
+
+@media (max-width: 640px) {
+    .profile-container {
+        padding: 1.5rem 1rem !important;
+        padding-bottom: 90px !important;
+    }
+
+    .profile-container .bento-grid {
+        grid-template-columns: 1fr !important;
+    }
+
+    .profile-container .bento-grid>div {
+        grid-column: span 1 !important;
+    }
+
+    .pr-form {
+        flex-direction: column !important;
+        align-items: stretch !important;
+        gap: 1rem !important;
+    }
+
+    .pr-form>div {
+        width: 100% !important;
+        flex: none !important;
+    }
+
+    .pr-form button {
+        width: 100% !important;
+        margin-top: 0.5rem !important;
+    }
+
+    .stats-overview {
+        grid-template-columns: 1fr !important;
+    }
+}
+
+/* 📅 Schedule Page Mobile Optimization */
+@media (max-width: 768px) {
+    .schedule-container {
+        padding: 1rem !important;
+        padding-bottom: 90px !important;
+    }
+
+    .day-selector::-webkit-scrollbar {
+        display: none;
+    }
+
+    .planner-card {
+        padding: 1.25rem !important;
+    }
+
+    .ex-main {
+        flex-direction: column !important;
+        align-items: stretch !important;
+        gap: 1rem !important;
+    }
+
+    .ex-stats {
+        justify-content: space-between !important;
+    }
+
+    .ex-stats>div {
+        flex: 1;
+    }
+
+    .ex-stats input {
+        width: 100% !important;
+        text-align: center;
+    }
+}

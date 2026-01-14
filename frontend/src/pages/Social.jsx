@@ -260,8 +260,8 @@ const Social = () => {
 
             {/* Friend Profile Modal */}
             {selectedFriend && (
-                <div style={styles.modalOverlay} onClick={() => setSelectedFriend(null)}>
-                    <div className="glass radial-glow" style={{ ...styles.modalContent, overflowY: 'auto', maxHeight: '90vh' }} onClick={e => e.stopPropagation()}>
+                <div className="social-modal-overlay" style={styles.modalOverlay} onClick={() => setSelectedFriend(null)}>
+                    <div className="glass radial-glow social-modal-content" style={{ ...styles.modalContent, overflowY: 'auto', maxHeight: '90vh' }} onClick={e => e.stopPropagation()}>
                         <button style={styles.closeBtn} onClick={() => setSelectedFriend(null)}><X size={24} /></button>
 
                         <div style={styles.modalHeader}>
@@ -511,60 +511,6 @@ const styles = {
         display: 'flex', justifyContent: 'space-between', padding: '1rem',
         borderBottom: '1px solid var(--glass-border)'
     }
-}
-
-// Inject mobile styles
-if (typeof window !== 'undefined') {
-    const styleSheet = document.createElement("style")
-    styleSheet.innerText = `
-        @media (max-width: 1024px) {
-            .social-container .bento-grid { grid-template-columns: repeat(2, 1fr) !important; }
-            .social-container .bento-grid > div { grid-column: span 2 !important; }
-        }
-        @media (max-width: 768px) {
-            .social-container { padding: 1.5rem 1rem !important; padding-bottom: 90px !important; }
-            .social-container h1 { font-size: 2.2rem !important; }
-            .social-container .bento-grid { grid-template-columns: 1fr !important; }
-            .social-container .bento-grid > div { grid-column: span 1 !important; }
-            
-            /* Modal Mobile Styles */
-            .social-container .glass.radial-glow { 
-                width: 95% !important; 
-                max-height: 85vh !important; 
-                overflow-y: auto !important; 
-                padding: 1.25rem !important;
-            }
-            /* Stats Grid for Mobile */
-            .modal-stats-mobile {
-                display: grid !important;
-                grid-template-columns: 1fr 1fr !important;
-                gap: 0.75rem !important;
-                padding: 1rem !important;
-            }
-            .modal-stats-mobile > div:last-child {
-                grid-column: span 2 !important;
-            }
-            .mini-stat-mobile {
-                flex-direction: column !important;
-                align-items: flex-start !important;
-                gap: 0.5rem !important;
-                background: rgba(255,255,255,0.03);
-                padding: 0.75rem;
-                border-radius: 12px;
-            }
-            /* Schedule Row Mobile */
-            .schedule-row-mobile {
-                flex-direction: column !important;
-                align-items: flex-start !important;
-                gap: 0.75rem !important;
-            }
-            .schedule-row-mobile button {
-                width: 100% !important;
-                text-align: center !important;
-            }
-        }
-    `
-    document.head.appendChild(styleSheet)
 }
 
 export default Social

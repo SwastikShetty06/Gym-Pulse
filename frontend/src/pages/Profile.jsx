@@ -83,7 +83,7 @@ const Profile = () => {
                         </div>
                         <h3 style={{ marginLeft: '1rem' }}>Gains Overview</h3>
                     </div>
-                    <div style={styles.statsOverview}>
+                    <div className="stats-overview" style={styles.statsOverview}>
                         <div style={styles.simpleStat}>
                             <p style={styles.statLabel}>Total PRs</p>
                             <p style={styles.statValue}>{prs.length}</p>
@@ -104,7 +104,7 @@ const Profile = () => {
                         <h3 style={{ marginLeft: '1rem' }}>Strength Vault</h3>
                     </div>
 
-                    <form onSubmit={handleAddPr} style={styles.prForm}>
+                    <form onSubmit={handleAddPr} className="pr-form" style={styles.prForm}>
                         <div style={{ flex: 2 }}>
                             <label style={styles.label}>Exercise</label>
                             <input
@@ -336,26 +336,6 @@ const styles = {
         borderRadius: '16px',
         border: '1px dashed var(--glass-border)'
     }
-}
-
-// Inject mobile styles
-if (typeof window !== 'undefined') {
-    const style = document.createElement('style')
-    style.innerHTML = `
-        @media (max-width: 1024px) {
-            .profile-container .bento-grid { grid-template-columns: repeat(2, 1fr) !important; }
-            .profile-container .bento-grid > div { grid-column: span 2 !important; }
-        }
-        @media (max-width: 640px) {
-            .profile-container { padding: 1.5rem 1rem !important; padding-bottom: 90px !important; }
-            .profile-container .bento-grid { grid-template-columns: 1fr !important; }
-            .profile-container .bento-grid > div { grid-column: span 1 !important; }
-            .profile-container .pr-form { flex-direction: column !important; align-items: stretch !important; padding: 1rem !important; }
-            .profile-container .pr-form button { margin-top: 0.5rem !important; }
-            .profile-container .stats-overview { grid-template-columns: 1fr !important; }
-        }
-    `
-    document.head.appendChild(style)
 }
 
 export default Profile
