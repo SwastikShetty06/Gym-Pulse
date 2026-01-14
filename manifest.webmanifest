@@ -1,0 +1,1 @@
+{"name":"Gym Pulse","short_name":"Pulse","description":"Your Personal Tracker","start_url":"/Gym-Pulse/","display":"standalone","background_color":"#060608","theme_color":"#060608","lang":"en","scope":"/Gym-Pulse/","icons":[{"src":"pwa-192x192.png","sizes":"192x192","type":"image/png"},{"src":"pwa-512x512.png","sizes":"512x512","type":"image/png"}]}
