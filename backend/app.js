@@ -27,7 +27,10 @@ if (!process.env.MONGODB_URI) {
 
 let isConnected = false;
 const connectDB = async () => {
-    if (isConnected) return;
+    if (mongoose.connection.readyState >= 1) {
+        isConnected = true;
+        return;
+    }
     try {
         await mongoose.connect(process.env.MONGODB_URI);
         isConnected = true;
@@ -37,7 +40,13 @@ const connectDB = async () => {
     }
 };
 
-connectDB();
+// Middleware to ensure DB is connected before handling request
+app.use(async (req, res, next) => {
+    if (!isConnected) {
+        await connectDB();
+    }
+    next();
+});
 
 // Routes
 app.use('/api/auth', require('./routes/auth'));
