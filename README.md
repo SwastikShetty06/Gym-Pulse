@@ -4,6 +4,25 @@
 
 Gym Pulse is a full-stack MERN application designed for serious athletes to track their progress, manage their training schedules, and connect with a community of elite performers. It combines powerful tracking tools with a premium, engaging "dark mode" aesthetic.
 
+## 📸 Gallery
+
+<p align="center">
+  <img src="assets/demo.gif" width="100%" alt="Gym Pulse Demo">
+</p>
+
+<p align="center">
+  <img src="assets/Screenshot%202026-01-17%20at%201.46.07%E2%80%AFPM.png" width="100%" alt="Gym Pulse Screenshot 1">
+</p>
+
+<p align="center">
+  <img src="assets/Screenshot%202026-01-17%20at%201.52.23%E2%80%AFPM.png" width="100%" alt="Gym Pulse Screenshot 2">
+</p>
+
+<p align="center">
+  <img src="assets/Screenshot%202026-01-17%20at%201.57.55%E2%80%AFPM.png" width="100%" alt="Gym Pulse Screenshot 3">
+</p>
+
+
 ## 🌟 Features
 
 ### 🏋️‍♂️ Training & Tracking
