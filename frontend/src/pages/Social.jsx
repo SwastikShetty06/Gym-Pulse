@@ -9,7 +9,7 @@ const Social = () => {
     const { token, user: currentUser } = useAuthStore()
     const [searchQuery, setSearchQuery] = useState('')
     const [searchResults, setSearchResults] = useState([])
-    const [network, setNetwork] = useState({ friends: [], followers: [], following: [], requests: [] })
+    const [network, setNetwork] = useState({ friends: [], requests: [] })
     const [selectedFriend, setSelectedFriend] = useState(null)
     const [loading, setLoading] = useState(false)
 
@@ -61,14 +61,7 @@ const Social = () => {
         }
     }
 
-    const toggleFollow = async (id) => {
-        try {
-            await axios.post(`/api/social/follow/${id}`, {}, { headers: { 'x-auth-token': token } })
-            fetchNetwork()
-        } catch (err) {
-            console.error(err)
-        }
-    }
+
 
     const viewFriendProfile = async (id) => {
         setLoading(true)
@@ -128,17 +121,10 @@ const Social = () => {
                                     <button
                                         onClick={() => sendRequest(user._id)}
                                         disabled={user.pending || network.friends.some(f => f._id === user._id)}
-                                        style={{ ...styles.actionBtn, background: 'rgba(99, 102, 241, 0.1)', color: 'var(--accent-primary)' }}
+                                        style={{ ...styles.actionBtn, background: 'rgba(99, 102, 241, 0.1)', color: 'var(--accent-primary)', width: '100%', justifyContent: 'center' }}
                                     >
                                         <UserPlus size={16} />
-                                        <span>{user.pending ? 'Pending' : 'Invite'}</span>
-                                    </button>
-                                    <button
-                                        onClick={() => toggleFollow(user._id)}
-                                        style={{ ...styles.actionBtn, background: 'rgba(168, 85, 247, 0.1)', color: 'var(--accent-secondary)' }}
-                                    >
-                                        <TrendingUp size={16} />
-                                        <span>Follow</span>
+                                        <span>{user.pending ? 'Pending' : 'Add Friend'}</span>
                                     </button>
                                 </div>
                             </div>
@@ -184,12 +170,12 @@ const Social = () => {
                         <div style={styles.iconBox}>
                             <Users size={20} color="var(--accent-primary)" />
                         </div>
-                        <h3 style={{ marginLeft: '1rem' }}>My Network</h3>
+                        <h3 style={{ marginLeft: '1rem' }}>Your Network</h3>
                     </div>
 
                     <div style={styles.networkTabs}>
                         <div style={styles.tabSection}>
-                            <p style={styles.tabLabel}>Recruits ({network.friends.length})</p>
+                            <p style={styles.tabLabel}>Friends ({network.friends.length})</p>
                             <div style={styles.horizontalScroll}>
                                 {network.friends.map(friend => (
                                     <div key={friend._id} className="glass hover-lift" style={styles.networkCard} onClick={() => viewFriendProfile(friend._id)}>
@@ -198,33 +184,7 @@ const Social = () => {
                                         <p style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>Friend</p>
                                     </div>
                                 ))}
-                                {network.friends.length === 0 && <p style={styles.emptyText}>Add friends to see them here.</p>}
-                            </div>
-                        </div>
-
-                        <div style={styles.tabSection}>
-                            <p style={styles.tabLabel}>Following ({network.following.length})</p>
-                            <div style={styles.horizontalScroll}>
-                                {network.following.map(user => (
-                                    <div key={user._id} className="glass hover-lift" style={styles.networkCard} onClick={() => viewFriendProfile(user._id)}>
-                                        <div style={{ ...styles.avatarGlow, background: 'linear-gradient(135deg, var(--accent-secondary), #d946ef)' }}>{user.name[0]}</div>
-                                        <p style={{ fontWeight: 700, fontSize: '0.9rem', marginTop: '0.75rem' }}>{user.name}</p>
-                                        <button onClick={(e) => { e.stopPropagation(); toggleFollow(user._id); }} style={styles.unfollowTxt}>Unfollow</button>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-
-                        <div style={styles.tabSection}>
-                            <p style={styles.tabLabel}>Followers ({network.followers.length})</p>
-                            <div style={styles.horizontalScroll}>
-                                {network.followers.map(user => (
-                                    <div key={user._id} className="glass hover-lift" style={styles.networkCard} onClick={() => viewFriendProfile(user._id)}>
-                                        <div style={{ ...styles.avatarGlow, background: 'linear-gradient(135deg, #10b981, #34d399)' }}>{user.name[0]}</div>
-                                        <p style={{ fontWeight: 700, fontSize: '0.9rem', marginTop: '0.75rem' }}>{user.name}</p>
-                                        <p style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>Follower</p>
-                                    </div>
-                                ))}
+                                {network.friends.length === 0 && <p style={styles.emptyText}>Add friends to start competing.</p>}
                             </div>
                         </div>
                     </div>

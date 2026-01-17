@@ -61,7 +61,7 @@ router.get('/', async (req, res) => {
 router.get('/:id', auth, async (req, res) => {
     try {
         const gym = await Gym.findById(req.params.id)
-            .populate('members', 'name email')
+            .populate('members', 'name email isPrivate')
             .populate('activeCheckins.user', 'name');
 
         if (!gym) return res.status(404).json({ msg: 'Gym not found' });

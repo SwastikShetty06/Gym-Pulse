@@ -1,33 +1,46 @@
 import { useState, useEffect } from 'react'
 import axios from 'axios'
 import { useAuthStore } from '../store/authStore'
-import { User, Mail, Award, Settings, Shield, Zap, Target, LogOut } from 'lucide-react'
+import { User, Mail, Award, Settings, Shield, Zap, Target, LogOut, Lock, Unlock } from 'lucide-react'
 
 const Profile = () => {
     const { user, token, logout } = useAuthStore()
     const [prs, setPrs] = useState([])
     const [lib, setLib] = useState([])
     const [loading, setLoading] = useState(true)
+    const [isPrivate, setIsPrivate] = useState(false)
     const [newPr, setNewPr] = useState({ exercise: '', weight: '', reps: '' })
 
     useEffect(() => {
-        const fetchPrs = async () => {
+        const fetchData = async () => {
             try {
                 const config = { headers: { 'x-auth-token': token } }
-                const [prRes, libRes] = await Promise.all([
+                const [prRes, libRes, userRes] = await Promise.all([
                     axios.get('/api/prs', config),
-                    axios.get('/api/exercises', config)
+                    axios.get('/api/exercises', config),
+                    axios.get('/api/auth/user', config)
                 ])
                 setPrs(prRes.data)
                 setLib(libRes.data)
+                setIsPrivate(userRes.data.isPrivate || false)
             } catch (err) {
                 console.error(err)
             } finally {
                 setLoading(false)
             }
         }
-        fetchPrs()
+        fetchData()
     }, [token])
+
+    const togglePrivacy = async () => {
+        try {
+            const config = { headers: { 'x-auth-token': token } }
+            const res = await axios.put('/api/auth/privacy', {}, config)
+            setIsPrivate(res.data.isPrivate)
+        } catch (err) {
+            console.error('Error toggling privacy:', err)
+        }
+    }
 
     const handleAddPr = async (e) => {
         e.preventDefault()
@@ -69,13 +82,30 @@ const Profile = () => {
                         </div>
                     </div>
 
-                    <button className="glass" style={styles.actionBtn}>
-                        <Settings size={18} />
-                        <span>Edit Account</span>
-                    </button>
+                    <div style={styles.actionRow}>
+                        <button className="glass" style={styles.actionBtn}>
+                            <Settings size={18} />
+                            <span>Edit Account</span>
+                        </button>
+
+                        <button
+                            onClick={togglePrivacy}
+                            className={`glass ${isPrivate ? 'active-private' : ''}`}
+                            style={{
+                                ...styles.actionBtn,
+                                background: isPrivate ? 'rgba(99, 102, 241, 0.2)' : 'rgba(255,255,255,0.05)',
+                                border: isPrivate ? '1px solid var(--accent-primary)' : '1px solid var(--glass-border)'
+                            }}
+                        >
+                            {isPrivate ? <Lock size={18} color="var(--accent-primary)" /> : <Unlock size={18} />}
+                            <span>{isPrivate ? 'Private' : 'Public'} Mode</span>
+                        </button>
+                    </div>
                 </div>
 
                 {/* Achievement Summary - Span 8 */}
+                {/* Keeping as is for now as it shows PR count and Muscle Groups, not followers. */}
+                {/* Wait, the user asked to 'only keep friends'. Usually profile stats include followers. Let's check line 60-70 area first for Profile Identity. */}
                 <div className="glass hover-lift" style={{ ...styles.card, gridColumn: 'span 8' }}>
                     <div style={styles.cardHeader}>
                         <div style={styles.iconBox}>
@@ -89,8 +119,8 @@ const Profile = () => {
                             <p style={styles.statValue}>{prs.length}</p>
                         </div>
                         <div style={styles.simpleStat}>
-                            <p style={styles.statLabel}>Muscle Groups</p>
-                            <p style={styles.statValue}>8</p>
+                            <p style={styles.statLabel}>Friends</p>
+                            <p style={styles.statValue}>{user?.friends?.length || 0}</p>
                         </div>
                     </div>
                 </div>
@@ -249,6 +279,11 @@ const styles = {
         gap: '0.75rem',
         fontSize: '0.9rem',
         color: 'var(--text-secondary)'
+    },
+    actionRow: {
+        display: 'flex',
+        gap: '0.75rem',
+        marginTop: 'auto'
     },
     actionBtn: {
         display: 'flex',

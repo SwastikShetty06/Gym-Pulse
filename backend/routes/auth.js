@@ -40,6 +40,22 @@ router.post('/login', async (req, res) => {
     }
 });
 
+// Toggle Privacy Support
+router.put('/privacy', require('../middleware/auth'), async (req, res) => {
+    try {
+        const user = await User.findById(req.user.id);
+        if (!user) return res.status(404).json({ msg: 'User not found' });
+
+        user.isPrivate = !user.isPrivate;
+        await user.save();
+
+        res.json({ isPrivate: user.isPrivate });
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).send('Server Error');
+    }
+});
+
 // Get Current User
 router.get('/user', require('../middleware/auth'), async (req, res) => {
     try {

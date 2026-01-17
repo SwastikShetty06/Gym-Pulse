@@ -18,7 +18,7 @@ router.get('/search', auth, async (req, res) => {
                 { email: { $regex: query, $options: 'i' } }
             ],
             _id: { $ne: req.user.id }
-        }).select('name email followers following friends friendRequests');
+        }).select('name email followers following friends friendRequests isPrivate');
 
         res.json(users);
     } catch (err) {
@@ -212,10 +212,37 @@ router.get('/profile/:id', auth, async (req, res) => {
             Attendance.find({ userId: targetId }).sort({ date: -1 }).limit(365),
             PersonalRecord.find({ userId: targetId }).sort({ date: -1 }),
             Schedule.find({ userId: targetId }),
-            User.findById(targetId).select('name email followers following friends')
+            User.findById(targetId).select('name email followers following friends isPrivate')
         ]);
 
         if (!user) return res.status(404).json({ msg: 'User not found' });
+
+        // Robust check for ObjectId array
+        const isFriend = user.friends.some(friendId => friendId.toString() === req.user.id);
+        const isSelf = targetId === req.user.id;
+
+        console.log(`[Profile View] Target: ${user.name} (${targetId}), Viewer: ${req.user.id}, Private: ${user.isPrivate}, IsFriend: ${isFriend}, IsSelf: ${isSelf}`);
+
+        // Privacy Check
+        if (user.isPrivate && !isFriend && !isSelf) {
+            console.log('--- RESTRICTING ACCESS ---');
+            return res.json({
+                user: {
+                    _id: user._id,
+                    name: user.name,
+                    email: user.email,
+                    isPrivate: true,
+                    followers: user.followers,
+                    following: user.following,
+                },
+                isPrivate: true,
+                attendance: [],
+                prs: [],
+                schedule: [],
+                streak: 0,
+                consistency: 0
+            });
+        }
 
         const streak = calculateStreak(attendance);
         // Matching Attendance.jsx logic: (total / 158) * 100

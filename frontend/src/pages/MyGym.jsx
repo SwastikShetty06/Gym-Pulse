@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react' // eslint-disable-line no-unused-vars
 import axios from 'axios'
-import { MapPin, Users, Activity, LogIn, LogOut, Search, PlusCircle, ArrowRight, X } from 'lucide-react'
+import { MapPin, Users, Activity, LogIn, LogOut, Search, PlusCircle, ArrowRight, X, Lock } from 'lucide-react'
 import { useAuthStore } from '../store/authStore'
 import FriendProfileModal from '../components/FriendProfileModal'
 
@@ -43,9 +43,20 @@ const MyGym = () => {
         if (user && user.gym) {
             fetchGymDetails()
         } else {
+            // Fetch default list of gyms for discovery
+            fetchDefaultGyms()
             setLoading(false)
         }
     }, [user])
+
+    const fetchDefaultGyms = async () => {
+        try {
+            const res = await axios.get('/api/gyms')
+            setSearchResults(res.data)
+        } catch (err) {
+            console.error('Failed to fetch default gyms', err)
+        }
+    }
 
     const fetchGymDetails = async () => {
         try {
@@ -152,7 +163,11 @@ const MyGym = () => {
                                     </button>
                                 </div>
                             ))}
-                            {searchResults.length === 0 && searchQuery.length > 1 && <p style={styles.emptyText}>No gyms found.</p>}
+                            {searchResults.length === 0 && (
+                                <p style={styles.emptyText}>
+                                    {searchQuery ? 'No gyms found matching your search.' : 'No gyms registered yet. Be the first!'}
+                                </p>
+                            )}
                         </div>
                     </div>
 
@@ -250,7 +265,12 @@ const MyGym = () => {
                                 onClick={() => handleViewProfile(m._id)}
                             >
                                 <div style={styles.miniAvatar}>{m.name ? m.name[0] : '?'}</div>
-                                <p style={{ fontWeight: 600 }}>{m.name}</p>
+                                <div style={{ flex: 1 }}>
+                                    <p style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                        {m.name}
+                                        {m.isPrivate && <Lock size={12} color="var(--text-secondary)" />}
+                                    </p>
+                                </div>
                                 {gym.activeCheckins.some(c => c.user._id === m._id) && (
                                     <span style={styles.onlineBadge}>● In Gym</span>
                                 )}

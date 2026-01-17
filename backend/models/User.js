@@ -14,6 +14,7 @@ const UserSchema = new mongoose.Schema({
         status: { type: String, enum: ['pending', 'accepted', 'rejected'], default: 'pending' }
     }],
     gym: { type: mongoose.Schema.Types.ObjectId, ref: 'Gym', default: null },
+    isPrivate: { type: Boolean, default: false },
     createdAt: { type: Date, default: Date.now }
 });
 
