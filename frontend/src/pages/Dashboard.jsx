@@ -1,16 +1,41 @@
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import axios from 'axios'
-import { Dumbbell, CheckCircle, Flame, ChevronRight, BarChart2, TrendingUp, Calendar as CalendarIcon } from 'lucide-react'
+import {
+    Activity,
+    CheckCircle2,
+    Flame,
+    ChevronRight,
+    TrendingUp,
+    Calendar as CalendarIcon,
+    ArrowUpRight,
+    Plus,
+    Clock
+} from 'lucide-react'
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
 import { useAuthStore } from '../store/authStore'
+import { useToastStore } from '../store/toastStore'
 
-const Dashboard = () => {
+const DURATION_PRESETS = [30, 45, 60, 90]
+const INTENSITY_OPTIONS = [
+    { label: 'High', desc: 'RPE 8-10' },
+    { label: 'Moderate', desc: 'RPE 6-7' },
+    { label: 'Light', desc: 'RPE 4-5' },
+    { label: 'Recovery', desc: 'RPE 1-3' }
+]
+
+export const Dashboard = () => {
+    const navigate = useNavigate()
     const { user, token } = useAuthStore()
+    const { addToast } = useToastStore()
+
     const [todaySchedule, setTodaySchedule] = useState(null)
     const [loading, setLoading] = useState(true)
     const [attendance, setAttendance] = useState([])
     const [streak, setStreak] = useState(0)
     const [attended, setAttended] = useState(false)
+    const [checkInDetails, setCheckInDetails] = useState({ duration: 60, intensity: 'High' })
+    const [submittingCheckIn, setSubmittingCheckIn] = useState(false)
 
     const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
     const today = days[new Date().getDay()]
@@ -24,10 +49,12 @@ const Dashboard = () => {
                 setTodaySchedule(currentDay)
 
                 const attRes = await axios.get('/api/attendance', config)
-                const attData = attRes.data
+                const attData = attRes.data || []
                 setAttendance(attData)
 
-                const todayAtt = attData.find(a => new Date(a.date).toDateString() === new Date().toDateString())
+                const todayAtt = attData.find(
+                    a => new Date(a.date).toDateString() === new Date().toDateString()
+                )
                 if (todayAtt) setAttended(true)
 
                 // Calculate Streak
@@ -37,23 +64,21 @@ const Dashboard = () => {
                     let curr = new Date()
                     curr.setHours(0, 0, 0, 0)
 
-                    // Fix: If today is not attended, start checking from yesterday
-                    // This prevents "Today" from counting as a miss immediately
                     if (!attSet.has(curr.toDateString())) {
                         curr.setDate(curr.getDate() - 1)
                     }
 
                     let misses = 0
-                    let window = []
+                    let windowArr = []
 
                     while (true) {
                         const dStr = curr.toDateString()
-                        const attended = attSet.has(dStr)
-                        window.push(attended)
-                        if (window.length > 7) {
-                            if (!window.shift()) misses--
+                        const hasAtt = attSet.has(dStr)
+                        windowArr.push(hasAtt)
+                        if (windowArr.length > 7) {
+                            if (!windowArr.shift()) misses--
                         }
-                        if (attended) {
+                        if (hasAtt) {
                             s++
                         } else {
                             misses++
@@ -66,6 +91,10 @@ const Dashboard = () => {
                 }
             } catch (err) {
                 console.error(err)
+                addToast({
+                    message: `Telemetry sync failed: ${err.message}`,
+                    type: 'error'
+                })
             } finally {
                 setLoading(false)
             }
@@ -73,203 +102,317 @@ const Dashboard = () => {
         fetchData()
     }, [token, today])
 
-    const [checkInDetails, setCheckInDetails] = useState({ duration: 60, mood: 'Good' })
-
+    // Optimistic check-in mutation (<50ms)
     const handleCheckIn = async () => {
+        if (submittingCheckIn || attended) return
+        setSubmittingCheckIn(true)
+
+        const prevAttended = attended
+        const prevStreak = streak
+        const prevAttendance = [...attendance]
+
+        const optimisticRecord = {
+            date: new Date().toISOString(),
+            duration: checkInDetails.duration,
+            mood: checkInDetails.intensity
+        }
+
+        setAttended(true)
+        setStreak(prev => prev + 1)
+        setAttendance(prev => [...prev, optimisticRecord])
+
+        addToast({
+            message: `Session logged: ${checkInDetails.duration} min (${checkInDetails.intensity} intensity).`,
+            type: 'success'
+        })
+
         try {
             const config = { headers: { 'x-auth-token': token } }
-            await axios.post('/api/attendance', {
-                date: new Date(),
-                duration: checkInDetails.duration,
-                mood: checkInDetails.mood
-            }, config)
-            setAttended(true)
-            setStreak(prev => prev + 1)
+            await axios.post(
+                '/api/attendance',
+                {
+                    date: new Date(),
+                    duration: checkInDetails.duration,
+                    mood: checkInDetails.intensity
+                },
+                config
+            )
         } catch (err) {
-            console.error(err)
+            setAttended(prevAttended)
+            setStreak(prevStreak)
+            setAttendance(prevAttendance)
+
+            addToast({
+                message: `Failed to record attendance: ${err.message}`,
+                type: 'error',
+                action: {
+                    label: 'Retry',
+                    onClick: () => handleCheckIn()
+                }
+            })
+        } finally {
+            setSubmittingCheckIn(false)
         }
     }
 
-    const chartData = attendance
-        .slice(-7)
-        .map(a => ({
-            day: new Date(a.date).toLocaleDateString('en-US', { weekday: 'short' }),
-            duration: Number(a.duration)
-        }))
+    const chartData = attendance.slice(-7).map(a => ({
+        day: new Date(a.date).toLocaleDateString('en-US', { weekday: 'short' }),
+        duration: Number(a.duration) || 0
+    }))
 
     const greeting = () => {
         const hour = new Date().getHours()
-        if (hour < 12) return "Good morning"
-        if (hour < 18) return "Good afternoon"
-        return "Good evening"
+        if (hour < 12) return 'Morning'
+        if (hour < 18) return 'Afternoon'
+        return 'Evening'
     }
 
     return (
-        <div className="dashboard-container" style={styles.container}>
+        <div style={styles.container} className="dashboard-container">
+            {/* Header */}
             <header style={styles.header}>
-                <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginBottom: '0.5rem' }}>{greeting()},</p>
-                <h1 style={{ fontSize: '3rem', lineHeight: 1 }}>
-                    <span className="gradient-text">{user?.name ? user.name.split(' ')[0] : 'Warrior'}</span>
-                </h1>
-                <p style={{ color: 'var(--text-secondary)', marginTop: '0.5rem' }}>
-                    {streak > 5 ? `You're on a ${streak}-day roll! Keep it up.` : "Let's crush today's goals!"}
-                </p>
+                <div style={styles.headerLeft}>
+                    <p style={styles.headerCaption}>
+                        {greeting()} • {new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                    </p>
+                    <h1>{user?.name ? user.name.split(' ')[0] : 'Athlete'}</h1>
+                </div>
+
+                <button
+                    onClick={() => navigate(`/schedule?day=${today}`)}
+                    className="btn-secondary"
+                    style={styles.headerBtn}
+                >
+                    <span>{today} Split</span>
+                    <ArrowUpRight size={14} />
+                </button>
             </header>
 
-            <div className="bento-grid" style={styles.grid}>
-                {/* Main Workout Card - Span 8 */}
-                <div className="glass hover-lift radial-glow" style={{ ...styles.card, gridColumn: 'span 8', gridRow: 'span 2' }}>
+            {/* Quick Metrics Bar on Mobile (Streak + Weekly Progress side-by-side) */}
+            <div style={styles.mobileMetricsRow} className="mobile-metrics-strip">
+                <div style={styles.miniMetricCard}>
+                    <div style={styles.miniMetricIconFlame}>
+                        <Flame size={16} color="#f59e0b" />
+                    </div>
+                    <div>
+                        <span style={styles.miniMetricLabel}>Streak</span>
+                        <span style={styles.miniMetricValue} className="tabular-nums">
+                            {streak} <small style={{ fontSize: '0.6875rem', color: '#71717a' }}>days</small>
+                        </span>
+                    </div>
+                </div>
+
+                <div style={styles.miniMetricCard}>
+                    <div style={styles.miniMetricIconCheck}>
+                        <CalendarIcon size={16} color="#10b981" />
+                    </div>
+                    <div>
+                        <span style={styles.miniMetricLabel}>Target</span>
+                        <span style={styles.miniMetricValue} className="tabular-nums">
+                            {Math.min(attendance.length, 5)}/5 <small style={{ fontSize: '0.6875rem', color: '#71717a' }}>done</small>
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            {/* Bento Grid (Stacks cleanly on mobile) */}
+            <div style={styles.grid} className="bento-grid">
+                {/* 1. Today's Program Card */}
+                <div style={{ ...styles.card, gridColumn: 'span 8' }}>
                     <div style={styles.cardHeader}>
                         <div style={styles.iconBox}>
-                            <Dumbbell size={20} color="var(--accent-primary)" />
+                            <Activity size={16} color="#3b82f6" />
                         </div>
-                        <h2 style={{ marginLeft: '1rem' }}>Today's Grind: {today}</h2>
+                        <div style={{ flex: 1 }}>
+                            <h2>Today: {today}</h2>
+                            <p style={styles.cardSub}>
+                                {todaySchedule?.exercises?.length || 0} programmed movements
+                            </p>
+                        </div>
+                        <button
+                            onClick={() => navigate(`/schedule?day=${today}`)}
+                            style={styles.cardHeaderAction}
+                        >
+                            Edit
+                        </button>
                     </div>
 
                     {loading ? (
-                        <div className="shimmer" style={{ height: '200px', borderRadius: '12px' }} />
-                    ) : todaySchedule ? (
+                        <div style={styles.loadingBox}>Loading session parameters...</div>
+                    ) : todaySchedule && todaySchedule.exercises.length > 0 ? (
                         <div style={styles.exerciseGrid}>
                             {todaySchedule.exercises.map((ex, i) => (
                                 <div key={i} style={styles.exerciseCard}>
-                                    <div>
-                                        <p style={{ fontWeight: 600, fontSize: '1.1rem' }}>{ex.name}</p>
-                                        <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>{ex.sets} sets • {ex.reps} reps</p>
+                                    <div style={{ minWidth: 0, flex: 1 }}>
+                                        <p style={styles.exName}>{ex.name || 'Movement'}</p>
+                                        <p style={styles.exMeta} className="tabular-nums">
+                                            {ex.sets} sets × {ex.reps} reps
+                                        </p>
                                     </div>
-                                    <div style={styles.chevronBox}>
-                                        <ChevronRight size={18} color="var(--text-secondary)" />
+                                    <div style={styles.rowChevron}>
+                                        <ChevronRight size={16} color="#71717a" />
                                     </div>
                                 </div>
                             ))}
                         </div>
                     ) : (
-                        <div style={{ textAlign: 'center', padding: '3rem 1rem', background: 'rgba(255,255,255,0.02)', borderRadius: '16px' }}>
-                            <p style={{ color: 'var(--text-secondary)', marginBottom: '1.5rem' }}>No workout planned for today. Rest is part of the game!</p>
-                            <button className="btn-primary">Set Schedule</button>
+                        <div style={styles.emptyCard}>
+                            <p style={styles.emptyTitle}>Rest day or no workout programmed</p>
+                            <p style={styles.emptyText}>
+                                Tap below to program your movements for {today}.
+                            </p>
+                            <button
+                                onClick={() => navigate(`/schedule?day=${today}`)}
+                                className="btn-primary"
+                                style={{ marginTop: '12px', width: '100%' }}
+                            >
+                                <Plus size={14} /> Program {today}
+                            </button>
                         </div>
                     )}
                 </div>
 
-                {/* Daily Status / Check-in - Span 4 */}
-                <div className="glass hover-lift" style={{ ...styles.card, gridColumn: 'span 4' }}>
+                {/* 2. Daily Check-in Card (Mobile-Optimized Pills) */}
+                <div style={{ ...styles.card, gridColumn: 'span 4' }}>
                     <div style={styles.cardHeader}>
                         <div style={styles.iconBox}>
-                            <CheckCircle size={20} color={attended ? 'var(--success)' : 'var(--text-secondary)'} />
+                            <CheckCircle2 size={16} color={attended ? '#10b981' : '#71717a'} />
                         </div>
-                        <h3 style={{ marginLeft: '1rem' }}>Daily Status</h3>
+                        <div>
+                            <h3>Session Verification</h3>
+                            <p style={styles.cardSub}>Log completed workout</p>
+                        </div>
                     </div>
 
-                    <div style={styles.statusContent}>
-                        <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginBottom: '1.5rem' }}>
-                            {attended ? "Great job! You've checked in today." : 'Have you hit the gym today?'}
-                        </p>
+                    {attended ? (
+                        <div style={styles.attendedState}>
+                            <div style={styles.verifiedBadge}>
+                                <CheckCircle2 size={14} color="#10b981" />
+                                <span style={{ color: '#10b981', fontWeight: 600, fontSize: '0.8125rem' }}>
+                                    Session Logged Today
+                                </span>
+                            </div>
+                            <p style={{ fontSize: '0.8125rem', color: '#71717a', marginTop: '8px' }}>
+                                Telemetry logged. Consistency score updated.
+                            </p>
+                        </div>
+                    ) : (
+                        <div style={styles.checkinForm}>
+                            {/* Duration Presets for mobile touch */}
+                            <div style={styles.formGroup}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <label style={styles.label}>Duration</label>
+                                    <span style={styles.durationDisplay} className="tabular-nums">
+                                        <Clock size={12} style={{ display: 'inline', marginRight: '4px' }} />
+                                        {checkInDetails.duration} min
+                                    </span>
+                                </div>
+                                <div style={styles.durationPresetRow}>
+                                    {DURATION_PRESETS.map((dur) => (
+                                        <button
+                                            key={dur}
+                                            type="button"
+                                            onClick={() => setCheckInDetails({ ...checkInDetails, duration: dur })}
+                                            style={{
+                                                ...styles.presetBtn,
+                                                backgroundColor: checkInDetails.duration === dur ? '#3b82f6' : '#18181b',
+                                                color: checkInDetails.duration === dur ? '#ffffff' : '#a1a1aa',
+                                                borderColor: checkInDetails.duration === dur ? '#3b82f6' : '#27272a'
+                                            }}
+                                        >
+                                            {dur}m
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
 
-                        {!attended && (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                                <div style={styles.inputGroup}>
-                                    <label style={styles.label}>Duration (min)</label>
-                                    <input
-                                        type="number"
-                                        value={checkInDetails.duration}
-                                        onChange={(e) => setCheckInDetails({ ...checkInDetails, duration: e.target.value })}
-                                        style={styles.input}
-                                    />
+                            {/* Intensity Pills */}
+                            <div style={styles.formGroup}>
+                                <label style={styles.label}>Intensity (RPE)</label>
+                                <div style={styles.intensityPillGrid}>
+                                    {INTENSITY_OPTIONS.map((opt) => {
+                                        const isSelected = checkInDetails.intensity === opt.label
+                                        return (
+                                            <button
+                                                key={opt.label}
+                                                type="button"
+                                                onClick={() => setCheckInDetails({ ...checkInDetails, intensity: opt.label })}
+                                                style={{
+                                                    ...styles.intensityPill,
+                                                    backgroundColor: isSelected ? '#27272a' : '#18181b',
+                                                    borderColor: isSelected ? '#3b82f6' : '#27272a',
+                                                    color: isSelected ? '#ffffff' : '#a1a1aa'
+                                                }}
+                                            >
+                                                <span style={{ fontSize: '0.8125rem', fontWeight: 600 }}>{opt.label}</span>
+                                                <span style={{ fontSize: '0.6875rem', color: '#71717a' }}>{opt.desc}</span>
+                                            </button>
+                                        )
+                                    })}
                                 </div>
-                                <div style={styles.inputGroup}>
-                                    <label style={styles.label}>Energy Level</label>
-                                    <select
-                                        value={checkInDetails.mood}
-                                        onChange={(e) => setCheckInDetails({ ...checkInDetails, mood: e.target.value })}
-                                        style={styles.input}
-                                    >
-                                        <option value="Killer">Killer 🔥</option>
-                                        <option value="Good">Good 👍</option>
-                                        <option value="Meh">Meh 😐</option>
-                                        <option value="Tired">Tired 😴</option>
-                                    </select>
-                                </div>
-                                <button onClick={handleCheckIn} className="btn-primary" style={{ width: '100%', marginTop: '0.5rem' }}>
-                                    Check In Now
-                                </button>
                             </div>
-                        )}
-                        {attended && (
-                            <div style={styles.attendedBadge}>
-                                <CheckCircle size={48} color="var(--success)" style={{ opacity: 0.2, position: 'absolute', right: -10, bottom: -10 }} />
-                                <p style={{ fontWeight: 700, fontSize: '1.2rem', color: 'var(--success)' }}>Verified</p>
-                                <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Session logged successfully</p>
-                            </div>
-                        )}
-                    </div>
+
+                            <button
+                                onClick={handleCheckIn}
+                                disabled={submittingCheckIn}
+                                className="btn-primary"
+                                style={styles.logSubmitBtn}
+                            >
+                                {submittingCheckIn ? 'Logging...' : 'Log Workout Session'}
+                            </button>
+                        </div>
+                    )}
                 </div>
 
-                {/* Streak Card - Span 4 */}
-                <div className="glass hover-lift" style={{ ...styles.card, gridColumn: 'span 4', display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '1.5rem' }}>
-                    <div style={{ ...styles.iconBox, width: '60px', height: '60px', background: 'rgba(249, 115, 22, 0.1)' }}>
-                        <Flame size={30} color="#f97316" />
-                    </div>
-                    <div>
-                        <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Current Streak</p>
-                        <p style={{ fontSize: '2rem', fontWeight: 800, lineHeight: 1 }}>{streak} <span style={{ fontSize: '1rem', fontWeight: 500, color: 'var(--text-secondary)' }}>Days</span></p>
-                    </div>
-                </div>
-
-                {/* Intensity Graph - Span 8 */}
-                <div className="glass hover-lift" style={{ ...styles.card, gridColumn: 'span 8', gridRow: 'span 2' }}>
+                {/* 3. Training Volume Chart */}
+                <div style={{ ...styles.card, gridColumn: 'span 12' }}>
                     <div style={styles.cardHeader}>
                         <div style={styles.iconBox}>
-                            <TrendingUp size={20} color="var(--accent-secondary)" />
+                            <TrendingUp size={16} color="#3b82f6" />
                         </div>
-                        <h3 style={{ marginLeft: '1rem' }}>Workout Intensity</h3>
+                        <div>
+                            <h2>Recent Activity History</h2>
+                            <p style={styles.cardSub}>Minutes logged across last 7 sessions</p>
+                        </div>
                     </div>
-                    <div style={{ height: '220px', width: '100%', marginTop: '1rem' }}>
+
+                    <div style={{ height: '180px', width: '100%', marginTop: '8px' }}>
                         <ResponsiveContainer width="100%" height="100%">
                             <AreaChart data={chartData}>
                                 <defs>
-                                    <linearGradient id="colorInt" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="5%" stopColor="var(--accent-secondary)" stopOpacity={0.3} />
-                                        <stop offset="95%" stopColor="var(--accent-secondary)" stopOpacity={0} />
+                                    <linearGradient id="durationGrad" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.25} />
+                                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.0} />
                                     </linearGradient>
                                 </defs>
-                                <XAxis dataKey="day" stroke="var(--text-secondary)" fontSize={12} tickLine={false} axisLine={false} />
+                                <XAxis
+                                    dataKey="day"
+                                    stroke="#71717a"
+                                    fontSize={11}
+                                    tickLine={false}
+                                    axisLine={false}
+                                />
                                 <YAxis hide />
                                 <Tooltip
-                                    contentStyle={{ background: 'var(--bg-tertiary)', border: '1px solid var(--glass-border)', borderRadius: '12px' }}
-                                    itemStyle={{ color: 'white' }}
+                                    contentStyle={{
+                                        backgroundColor: '#18181b',
+                                        border: '1px solid #27272a',
+                                        borderRadius: '6px',
+                                        fontSize: '0.8125rem'
+                                    }}
+                                    itemStyle={{ color: '#f4f4f5' }}
                                 />
                                 <Area
                                     type="monotone"
                                     dataKey="duration"
-                                    stroke="var(--accent-secondary)"
+                                    stroke="#3b82f6"
                                     fillOpacity={1}
-                                    fill="url(#colorInt)"
-                                    strokeWidth={3}
-                                    animationDuration={1500}
+                                    fill="url(#durationGrad)"
+                                    strokeWidth={2}
+                                    animationDuration={300}
                                 />
                             </AreaChart>
                         </ResponsiveContainer>
-                    </div>
-                </div>
-
-                {/* Weekly Target - Span 4 */}
-                <div className="glass hover-lift" style={{ ...styles.card, gridColumn: 'span 4' }}>
-                    <div style={styles.cardHeader}>
-                        <div style={styles.iconBox}>
-                            <CalendarIcon size={20} color="var(--accent-primary)" />
-                        </div>
-                        <h3 style={{ marginLeft: '1rem' }}>Weekly Target</h3>
-                    </div>
-                    <div style={{ marginTop: '1rem' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                            <p style={{ fontWeight: 600 }}>6 / 7 Sessions</p>
-                            <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>85%</p>
-                        </div>
-                        <div style={styles.progressBar}>
-                            <div className="shimmer" style={{ ...styles.progressFill, width: '85%' }} />
-                        </div>
-                        <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '1rem' }}>
-                            You're ahead of 92% of users! Just one more to hit your goal.
-                        </p>
                     </div>
                 </div>
             </div>
@@ -279,125 +422,252 @@ const Dashboard = () => {
 
 const styles = {
     container: {
-        padding: '3rem 2rem',
-        minHeight: '100vh',
-        maxWidth: '1300px',
-        margin: '0 auto'
+        padding: '16px',
+        maxWidth: '1200px',
+        margin: '0 auto',
+        minHeight: '100%',
+        boxSizing: 'border-box'
     },
     header: {
-        marginBottom: '3rem'
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: '16px',
+        borderBottom: '1px solid #27272a',
+        paddingBottom: '12px'
+    },
+    headerLeft: {
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '2px'
+    },
+    headerCaption: {
+        fontSize: '0.6875rem',
+        color: '#71717a',
+        textTransform: 'uppercase',
+        letterSpacing: '0.04em'
+    },
+    headerBtn: {
+        fontSize: '0.8125rem',
+        padding: '6px 12px',
+        minHeight: '36px'
+    },
+    mobileMetricsRow: {
+        display: 'flex',
+        gap: '8px',
+        marginBottom: '14px',
+        width: '100%'
+    },
+    miniMetricCard: {
+        flex: 1,
+        backgroundColor: '#121215',
+        border: '1px solid #27272a',
+        borderRadius: '8px',
+        padding: '10px 12px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '10px'
+    },
+    miniMetricIconFlame: {
+        width: '32px',
+        height: '32px',
+        borderRadius: '6px',
+        backgroundColor: 'rgba(245, 158, 11, 0.1)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        flexShrink: 0
+    },
+    miniMetricIconCheck: {
+        width: '32px',
+        height: '32px',
+        borderRadius: '6px',
+        backgroundColor: 'rgba(16, 185, 129, 0.1)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        flexShrink: 0
+    },
+    miniMetricLabel: {
+        display: 'block',
+        fontSize: '0.6875rem',
+        color: '#71717a',
+        textTransform: 'uppercase',
+        letterSpacing: '0.04em'
+    },
+    miniMetricValue: {
+        fontSize: '1.125rem',
+        fontWeight: 600,
+        color: '#f4f4f5'
     },
     grid: {
         display: 'grid',
         gridTemplateColumns: 'repeat(12, 1fr)',
-        gridAutoRows: 'minmax(120px, auto)',
-        gap: '1.5rem'
+        gap: '14px'
     },
     card: {
-        padding: '2rem',
+        backgroundColor: '#121215',
+        border: '1px solid #27272a',
+        borderRadius: '8px',
+        padding: '16px',
         display: 'flex',
         flexDirection: 'column',
-        position: 'relative'
+        boxSizing: 'border-box'
     },
     cardHeader: {
         display: 'flex',
         alignItems: 'center',
-        marginBottom: '1rem'
+        gap: '10px',
+        marginBottom: '14px'
     },
     iconBox: {
-        width: '44px',
-        height: '44px',
-        borderRadius: '12px',
-        background: 'rgba(255, 255, 255, 0.05)',
+        width: '30px',
+        height: '30px',
+        borderRadius: '6px',
+        backgroundColor: '#18181b',
+        border: '1px solid #27272a',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        border: '1px solid var(--glass-border)'
+        flexShrink: 0
+    },
+    cardSub: {
+        fontSize: '0.75rem',
+        color: '#71717a'
+    },
+    cardHeaderAction: {
+        background: 'transparent',
+        border: 'none',
+        color: '#3b82f6',
+        fontSize: '0.8125rem',
+        fontWeight: 500,
+        cursor: 'pointer',
+        padding: '4px 8px'
+    },
+    loadingBox: {
+        padding: '24px',
+        textAlign: 'center',
+        color: '#71717a',
+        fontSize: '0.8125rem'
     },
     exerciseGrid: {
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
-        gap: '1rem'
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '6px'
     },
     exerciseCard: {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        padding: '1.25rem',
-        background: 'rgba(255, 255, 255, 0.02)',
-        borderRadius: '16px',
-        border: '1px solid var(--glass-border)',
-        transition: 'all 0.2s ease'
+        padding: '10px 12px',
+        backgroundColor: '#18181b',
+        border: '1px solid #27272a',
+        borderRadius: '6px'
     },
-    chevronBox: {
-        width: '32px',
-        height: '32px',
-        borderRadius: '8px',
+    exName: {
+        fontSize: '0.8125rem',
+        fontWeight: 500,
+        color: '#f4f4f5',
+        margin: 0
+    },
+    exMeta: {
+        fontSize: '0.75rem',
+        color: '#71717a',
+        margin: 0
+    },
+    rowChevron: {
         display: 'flex',
         alignItems: 'center',
-        justifyContent: 'center',
-        background: 'rgba(255,255,255,0.03)'
+        marginLeft: '8px'
     },
-    inputGroup: {
+    emptyCard: {
+        padding: '24px 12px',
+        textAlign: 'center',
+        border: '1px dashed #27272a',
+        borderRadius: '6px',
+        backgroundColor: '#18181b'
+    },
+    emptyTitle: {
+        fontSize: '0.875rem',
+        fontWeight: 500,
+        color: '#f4f4f5',
+        marginBottom: '4px'
+    },
+    emptyText: {
+        fontSize: '0.8125rem',
+        color: '#71717a'
+    },
+    attendedState: {
+        padding: '14px',
+        backgroundColor: '#18181b',
+        border: '1px solid #27272a',
+        borderRadius: '6px'
+    },
+    verifiedBadge: {
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: '6px',
+        backgroundColor: 'rgba(16, 185, 129, 0.1)',
+        padding: '4px 8px',
+        borderRadius: '4px'
+    },
+    checkinForm: {
         display: 'flex',
         flexDirection: 'column',
-        gap: '0.5rem'
+        gap: '12px'
+    },
+    formGroup: {
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '6px'
     },
     label: {
-        fontSize: '0.8rem',
-        color: 'var(--text-secondary)',
+        fontSize: '0.75rem',
+        color: '#71717a',
         fontWeight: 500
     },
-    input: {
+    durationDisplay: {
+        fontSize: '0.75rem',
+        color: '#3b82f6',
+        fontWeight: 600
+    },
+    durationPresetRow: {
+        display: 'flex',
+        gap: '6px'
+    },
+    presetBtn: {
+        flex: 1,
+        height: '36px',
+        borderRadius: '6px',
+        border: '1px solid #27272a',
+        fontSize: '0.8125rem',
+        fontWeight: 600,
+        cursor: 'pointer',
+        touchAction: 'manipulation'
+    },
+    intensityPillGrid: {
+        display: 'grid',
+        gridTemplateColumns: '1fr 1fr',
+        gap: '6px'
+    },
+    intensityPill: {
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '8px 6px',
+        borderRadius: '6px',
+        border: '1px solid #27272a',
+        cursor: 'pointer',
+        touchAction: 'manipulation'
+    },
+    logSubmitBtn: {
         width: '100%',
-        background: 'var(--bg-tertiary)',
-        border: '1px solid var(--glass-border)',
-        borderRadius: '12px',
-        color: 'white',
-        padding: '0.75rem',
-        fontSize: '0.95rem',
-        outline: 'none',
-        transition: 'border-color 0.2s ease'
-    },
-    attendedBadge: {
-        padding: '1.5rem',
-        background: 'rgba(16, 185, 129, 0.05)',
-        borderRadius: '16px',
-        border: '1px solid rgba(16, 185, 129, 0.2)',
-        position: 'relative',
-        overflow: 'hidden'
-    },
-    progressBar: {
-        width: '100%',
-        height: '10px',
-        background: 'rgba(255, 255, 255, 0.05)',
-        borderRadius: '10px',
-        overflow: 'hidden'
-    },
-    progressFill: {
-        height: '100%',
-        background: 'linear-gradient(90deg, var(--accent-primary), var(--accent-secondary))',
-        borderRadius: '10px'
+        minHeight: '44px',
+        fontSize: '0.875rem',
+        fontWeight: 600,
+        marginTop: '4px'
     }
-}
-
-// Inject mobile styles
-if (typeof window !== 'undefined') {
-    const style = document.createElement('style')
-    style.innerHTML = `
-        @media (max-width: 1024px) {
-            .dashboard-container .bento-grid { grid-template-columns: repeat(2, 1fr) !important; }
-            .dashboard-container .bento-grid > div { grid-column: span 2 !important; }
-        }
-        @media (max-width: 640px) {
-            .dashboard-container { padding: 1.5rem 1rem !important; padding-bottom: 90px !important; }
-            .dashboard-header h1 { font-size: 2.2rem !important; }
-            .dashboard-container .bento-grid { grid-template-columns: 1fr !important; }
-            .dashboard-container .bento-grid > div { grid-column: span 1 !important; }
-            .dashboard-container .exercise-grid { grid-template-columns: 1fr !important; }
-        }
-    `
-    document.head.appendChild(style)
 }
 
 export default Dashboard

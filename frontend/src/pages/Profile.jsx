@@ -1,15 +1,18 @@
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
 import axios from 'axios'
 import { useAuthStore } from '../store/authStore'
-import { User, Mail, Award, Settings, Shield, Zap, Target, LogOut, Lock, Unlock } from 'lucide-react'
+import { useToastStore } from '../store/toastStore'
+import { User, Mail, Award, Shield, Target, LogOut, Lock, Unlock, Plus } from 'lucide-react'
 
-const Profile = () => {
+export const Profile = () => {
     const { user, token, logout } = useAuthStore()
+    const { addToast } = useToastStore()
     const [prs, setPrs] = useState([])
     const [lib, setLib] = useState([])
     const [loading, setLoading] = useState(true)
     const [isPrivate, setIsPrivate] = useState(false)
     const [newPr, setNewPr] = useState({ exercise: '', weight: '', reps: '' })
+    const [submittingPr, setSubmittingPr] = useState(false)
 
     useEffect(() => {
         const fetchData = async () => {
@@ -20,11 +23,12 @@ const Profile = () => {
                     axios.get('/api/exercises', config),
                     axios.get('/api/auth/user', config)
                 ])
-                setPrs(prRes.data)
-                setLib(libRes.data)
-                setIsPrivate(userRes.data.isPrivate || false)
+                setPrs(prRes.data || [])
+                setLib(libRes.data || [])
+                setIsPrivate(Boolean(userRes.data?.isPrivate))
             } catch (err) {
                 console.error(err)
+                addToast({ message: `Profile sync failed: ${err.message}`, type: 'error' })
             } finally {
                 setLoading(false)
             }
@@ -33,162 +37,232 @@ const Profile = () => {
     }, [token])
 
     const togglePrivacy = async () => {
+        const nextState = !isPrivate
+        setIsPrivate(nextState)
+        addToast({
+            message: nextState ? 'Account set to Private' : 'Account set to Public',
+            type: 'info'
+        })
+
         try {
             const config = { headers: { 'x-auth-token': token } }
             const res = await axios.put('/api/auth/privacy', {}, config)
-            setIsPrivate(res.data.isPrivate)
+            setIsPrivate(Boolean(res.data?.isPrivate))
         } catch (err) {
             console.error('Error toggling privacy:', err)
+            setIsPrivate(!nextState)
+            addToast({ message: 'Privacy toggle failed to persist', type: 'error' })
         }
     }
 
     const handleAddPr = async (e) => {
         e.preventDefault()
+        if (submittingPr) return
+        setSubmittingPr(true)
+
+        const optimisticPr = {
+            _id: `temp-${Date.now()}`,
+            exercise: newPr.exercise,
+            weight: Number(newPr.weight),
+            reps: Number(newPr.reps),
+            date: new Date().toISOString()
+        }
+
+        const prevPrs = [...prs]
+        setPrs([optimisticPr, ...prs])
+        addToast({
+            message: `Recorded PR: ${newPr.exercise} (${newPr.weight}kg × ${newPr.reps})`,
+            type: 'success'
+        })
+        const toSave = { ...newPr }
+        setNewPr({ exercise: '', weight: '', reps: '' })
+
         try {
             const config = { headers: { 'x-auth-token': token } }
-            await axios.post('/api/prs', newPr, config)
+            await axios.post('/api/prs', toSave, config)
             const updated = await axios.get('/api/prs', config)
-            setPrs(updated.data)
-            setNewPr({ exercise: '', weight: '', reps: '' })
+            setPrs(updated.data || [])
         } catch (err) {
             console.error(err)
+            setPrs(prevPrs)
+            addToast({
+                message: `Failed to record PR: ${err.message}`,
+                type: 'error'
+            })
+        } finally {
+            setSubmittingPr(false)
         }
     }
 
     return (
-        <div className="profile-container" style={styles.container}>
+        <div style={styles.container} className="profile-container">
+            {/* Header */}
             <header style={styles.header}>
-                <h1 style={{ fontSize: '3rem' }}>Your <span className="gradient-text">Profile</span></h1>
-                <p style={{ color: 'var(--text-secondary)', marginTop: '0.5rem' }}>Manage your account and track your peak performance</p>
+                <div style={styles.headerLeft}>
+                    <h1>Account & Personal Records</h1>
+                    <p style={styles.headerSub}>
+                        Manage privacy settings, identity credentials, and personal record registry.
+                    </p>
+                </div>
             </header>
 
-            <div className="bento-grid" style={styles.grid}>
-                {/* Profile Identity Card - Span 4 */}
-                <div className="glass hover-lift radial-glow" style={{ ...styles.card, gridColumn: 'span 4', alignItems: 'center', textAlign: 'center' }}>
+            <div style={styles.grid} className="bento-grid">
+                {/* Identity Card */}
+                <div style={{ ...styles.card, gridColumn: 'span 4', textAlign: 'center', alignItems: 'center' }}>
                     <div style={styles.avatar}>
-                        <User size={48} color="white" />
-                        <div style={styles.badge}><Zap size={14} fill="white" /></div>
+                        {(user?.name?.[0] || 'A').toUpperCase()}
                     </div>
-                    <h2 style={{ fontSize: '1.5rem', marginBottom: '1.5rem' }}>{user?.name}</h2>
+                    <h2 style={{ fontSize: '1.125rem', marginTop: '12px', marginBottom: '2px' }}>
+                        {user?.name || 'Athlete'}
+                    </h2>
+                    <span style={{ fontSize: '0.75rem', color: '#71717a' }}>{user?.email}</span>
 
-                    <div style={styles.infoStack}>
-                        <div style={styles.miniInfo}>
-                            <Mail size={16} color="var(--text-secondary)" />
+                    <div style={styles.identityMeta}>
+                        <div style={styles.metaRow}>
+                            <Mail size={14} color="#71717a" />
                             <span>{user?.email}</span>
                         </div>
-                        <div style={styles.miniInfo}>
-                            <Shield size={16} color="var(--text-secondary)" />
-                            <span>Member since Jan 2026</span>
+                        <div style={styles.metaRow}>
+                            <Shield size={14} color="#71717a" />
+                            <span>Tier-1 Athlete</span>
                         </div>
                     </div>
 
-                    <div style={styles.actionRow}>
-                        <button className="glass" style={styles.actionBtn}>
-                            <Settings size={18} />
-                            <span>Edit Account</span>
-                        </button>
-
+                    <div style={{ width: '100%', marginTop: '16px' }}>
                         <button
                             onClick={togglePrivacy}
-                            className={`glass ${isPrivate ? 'active-private' : ''}`}
-                            style={{
-                                ...styles.actionBtn,
-                                background: isPrivate ? 'rgba(99, 102, 241, 0.2)' : 'rgba(255,255,255,0.05)',
-                                border: isPrivate ? '1px solid var(--accent-primary)' : '1px solid var(--glass-border)'
-                            }}
+                            className="btn-secondary"
+                            style={{ width: '100%', fontSize: '0.8125rem' }}
                         >
-                            {isPrivate ? <Lock size={18} color="var(--accent-primary)" /> : <Unlock size={18} />}
-                            <span>{isPrivate ? 'Private' : 'Public'} Mode</span>
+                            {isPrivate ? <Lock size={14} color="#3b82f6" /> : <Unlock size={14} />}
+                            <span>{isPrivate ? 'Profile: Private' : 'Profile: Public'}</span>
                         </button>
                     </div>
                 </div>
 
-                {/* Achievement Summary - Span 8 */}
-                {/* Keeping as is for now as it shows PR count and Muscle Groups, not followers. */}
-                {/* Wait, the user asked to 'only keep friends'. Usually profile stats include followers. Let's check line 60-70 area first for Profile Identity. */}
-                <div className="glass hover-lift" style={{ ...styles.card, gridColumn: 'span 8' }}>
+                {/* Gains Overview Card */}
+                <div style={{ ...styles.card, gridColumn: 'span 8' }}>
                     <div style={styles.cardHeader}>
                         <div style={styles.iconBox}>
-                            <Target size={20} color="var(--accent-secondary)" />
+                            <Target size={16} color="#3b82f6" />
                         </div>
-                        <h3 style={{ marginLeft: '1rem' }}>Gains Overview</h3>
+                        <div>
+                            <h2>Performance Metric Summary</h2>
+                            <p style={styles.cardSub}>Verified benchmarks</p>
+                        </div>
                     </div>
-                    <div className="stats-overview" style={styles.statsOverview}>
-                        <div style={styles.simpleStat}>
-                            <p style={styles.statLabel}>Total PRs</p>
-                            <p style={styles.statValue}>{prs.length}</p>
+
+                    <div style={styles.statsOverview} className="stats-overview">
+                        <div style={styles.statBox}>
+                            <span style={styles.statLabel}>Recorded PRs</span>
+                            <span style={styles.statVal} className="tabular-nums">
+                                {prs.length}
+                            </span>
                         </div>
-                        <div style={styles.simpleStat}>
-                            <p style={styles.statLabel}>Friends</p>
-                            <p style={styles.statValue}>{user?.friends?.length || 0}</p>
+                        <div style={styles.statBox}>
+                            <span style={styles.statLabel}>Active Network</span>
+                            <span style={styles.statVal} className="tabular-nums">
+                                {user?.friends?.length || 0}
+                            </span>
                         </div>
                     </div>
                 </div>
 
-                {/* PR Logger Window - Span 12 */}
-                <div className="glass hover-lift" style={{ ...styles.card, gridColumn: 'span 12' }}>
+                {/* PR Logger Window */}
+                <div style={{ ...styles.card, gridColumn: 'span 12' }}>
                     <div style={styles.cardHeader}>
                         <div style={styles.iconBox}>
-                            <Award size={20} color="var(--accent-primary)" />
+                            <Award size={16} color="#3b82f6" />
                         </div>
-                        <h3 style={{ marginLeft: '1rem' }}>Strength Vault</h3>
+                        <div>
+                            <h2>Personal Record Vault</h2>
+                            <p style={styles.cardSub}>Log new maximum weight achievements</p>
+                        </div>
                     </div>
 
-                    <form onSubmit={handleAddPr} className="pr-form" style={styles.prForm}>
-                        <div style={{ flex: 2 }}>
-                            <label style={styles.label}>Exercise</label>
+                    <form onSubmit={handleAddPr} style={styles.prForm} className="pr-form">
+                        <div style={{ flex: 2, minWidth: '180px' }}>
+                            <label style={styles.label}>Movement</label>
                             <input
                                 list="pr-exercises"
                                 value={newPr.exercise}
                                 onChange={(e) => setNewPr({ ...newPr, exercise: e.target.value })}
                                 style={styles.input}
-                                placeholder="Select exercise..."
+                                placeholder="Select or type exercise..."
                                 required
                             />
                             <datalist id="pr-exercises">
-                                {(lib || []).map(ex => <option key={ex._id} value={ex.name} />)}
+                                {(lib || []).map((ex) => (
+                                    <option key={ex._id || ex.name} value={ex.name} />
+                                ))}
                             </datalist>
                         </div>
-                        <div style={{ flex: 1 }}>
+
+                        <div style={{ flex: 1, minWidth: '100px' }}>
                             <label style={styles.label}>Weight (kg)</label>
                             <input
                                 type="number"
+                                min="1"
+                                max="600"
                                 value={newPr.weight}
                                 onChange={(e) => setNewPr({ ...newPr, weight: e.target.value })}
                                 style={styles.input}
+                                className="tabular-nums"
+                                placeholder="100"
                                 required
                             />
                         </div>
-                        <div style={{ flex: 1 }}>
+
+                        <div style={{ flex: 1, minWidth: '100px' }}>
                             <label style={styles.label}>Reps</label>
                             <input
                                 type="number"
+                                min="1"
+                                max="100"
                                 value={newPr.reps}
                                 onChange={(e) => setNewPr({ ...newPr, reps: e.target.value })}
                                 style={styles.input}
+                                className="tabular-nums"
+                                placeholder="5"
                                 required
                             />
                         </div>
-                        <button type="submit" className="btn-primary" style={{ height: '45px', marginTop: '1.4rem' }}>
-                            Log
+
+                        <button
+                            type="submit"
+                            disabled={submittingPr}
+                            className="btn-primary"
+                            style={{ alignSelf: 'flex-end', padding: '8px 16px', fontSize: '0.8125rem' }}
+                        >
+                            <Plus size={14} />
+                            <span>{submittingPr ? 'Logging...' : 'Log PR'}</span>
                         </button>
                     </form>
 
                     <div style={styles.scrollList}>
-                        {(!prs || prs.length === 0) ? (
+                        {!prs || prs.length === 0 ? (
                             <div style={styles.emptyState}>
-                                <p>No PRs recorded yet. Time to test your limits!</p>
+                                <p style={{ fontSize: '0.8125rem', color: '#71717a', margin: 0 }}>
+                                    No personal records registered. Log a lift above to initialize your vault.
+                                </p>
                             </div>
                         ) : (
-                            prs.map(pr => (
+                            prs.map((pr) => (
                                 <div key={pr._id} style={styles.prRow}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                                        <div style={styles.dot} />
-                                        <p style={{ fontWeight: 600 }}>{pr.exercise}</p>
+                                    <div>
+                                        <p style={styles.prTitle}>{pr.exercise}</p>
+                                        <p style={styles.prDate}>
+                                            {pr.date ? new Date(pr.date).toLocaleDateString() : 'Recorded'}
+                                        </p>
                                     </div>
+
                                     <div style={{ textAlign: 'right' }}>
-                                        <p style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--accent-primary)' }}>{pr.weight} kg</p>
-                                        <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{pr.reps} reps</p>
+                                        <span style={styles.prWeight} className="tabular-nums">
+                                            {pr.weight} <span style={{ fontSize: '0.75rem', color: '#71717a' }}>kg</span>
+                                        </span>
+                                        <p style={styles.prReps} className="tabular-nums">
+                                            {pr.reps} {pr.reps === 1 ? 'rep' : 'reps'}
+                                        </p>
                                     </div>
                                 </div>
                             ))
@@ -197,200 +271,198 @@ const Profile = () => {
                 </div>
             </div>
 
-            <button onClick={logout} className="hover-lift" style={styles.logoutBtnMobile}>
-                <LogOut size={20} />
-                Sign Out
-            </button>
-        </div >
+            <div style={{ marginTop: '24px', display: 'flex', justifyContent: 'flex-end' }}>
+                <button
+                    onClick={logout}
+                    className="btn-secondary"
+                    style={{ color: '#ef4444', borderColor: 'rgba(239, 68, 68, 0.2)' }}
+                >
+                    <LogOut size={14} />
+                    <span>Sign Out</span>
+                </button>
+            </div>
+        </div>
     )
 }
 
 const styles = {
     container: {
-        padding: '3rem 2rem',
+        padding: '24px 32px',
+        maxWidth: '1200px',
+        margin: '0 auto',
         minHeight: '100vh',
-        maxWidth: '1300px',
-        margin: '0 auto'
+        boxSizing: 'border-box'
     },
     header: {
-        marginBottom: '3rem'
+        display: 'flex',
+        alignItems: 'flex-start',
+        justifyContent: 'space-between',
+        marginBottom: '20px',
+        borderBottom: '1px solid #27272a',
+        paddingBottom: '16px'
+    },
+    headerLeft: {
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '4px'
+    },
+    headerSub: {
+        fontSize: '0.8125rem',
+        color: '#a1a1aa'
     },
     grid: {
         display: 'grid',
         gridTemplateColumns: 'repeat(12, 1fr)',
-        gridAutoRows: 'minmax(140px, auto)',
-        gap: '1.5rem'
+        gap: '16px'
     },
     card: {
-        padding: '2.5rem 2rem',
+        backgroundColor: '#121215',
+        border: '1px solid #27272a',
+        borderRadius: '8px',
+        padding: '20px',
         display: 'flex',
         flexDirection: 'column',
+        boxSizing: 'border-box'
     },
     cardHeader: {
         display: 'flex',
         alignItems: 'center',
-        marginBottom: '2rem'
+        gap: '12px',
+        marginBottom: '16px'
     },
     iconBox: {
-        width: '44px',
-        height: '44px',
-        borderRadius: '12px',
-        background: 'rgba(255, 255, 255, 0.05)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        border: '1px solid var(--glass-border)'
-    },
-    avatar: {
-        width: '110px',
-        height: '110px',
-        borderRadius: '50%',
-        background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginBottom: '1.5rem',
-        position: 'relative',
-        boxShadow: '0 0 40px rgba(99, 102, 241, 0.3)'
-    },
-    badge: {
-        position: 'absolute',
-        bottom: '0',
-        right: '0',
         width: '32px',
         height: '32px',
-        background: 'var(--bg-primary)',
-        borderRadius: '50%',
+        borderRadius: '6px',
+        backgroundColor: '#18181b',
+        border: '1px solid #27272a',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        border: '2px solid var(--accent-primary)'
+        flexShrink: 0
     },
-    infoStack: {
+    cardSub: {
+        fontSize: '0.75rem',
+        color: '#71717a'
+    },
+    avatar: {
+        width: '56px',
+        height: '56px',
+        borderRadius: '8px',
+        backgroundColor: '#18181b',
+        border: '1px solid #27272a',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        fontSize: '1.25rem',
+        fontWeight: 600,
+        color: '#f4f4f5'
+    },
+    identityMeta: {
         width: '100%',
+        marginTop: '16px',
         display: 'flex',
         flexDirection: 'column',
-        gap: '0.875rem',
-        marginBottom: '2rem'
+        gap: '6px',
+        textAlign: 'left'
     },
-    miniInfo: {
+    metaRow: {
         display: 'flex',
         alignItems: 'center',
-        gap: '0.75rem',
-        fontSize: '0.9rem',
-        color: 'var(--text-secondary)'
-    },
-    actionRow: {
-        display: 'flex',
-        gap: '0.75rem',
-        marginTop: 'auto'
-    },
-    actionBtn: {
-        display: 'flex',
-        alignItems: 'center',
-        gap: '0.75rem',
-        padding: '0.875rem 1.25rem',
-        borderRadius: '14px',
-        color: 'white',
-        fontWeight: 600,
-        fontSize: '0.9rem'
+        gap: '8px',
+        fontSize: '0.75rem',
+        color: '#71717a'
     },
     statsOverview: {
         display: 'grid',
-        gridTemplateColumns: 'repeat(2, 1fr)',
-        gap: '1.5rem'
+        gridTemplateColumns: '1fr 1fr',
+        gap: '12px',
+        marginTop: '8px'
     },
-    simpleStat: {
-        padding: '1.5rem',
-        background: 'rgba(255,255,255,0.02)',
-        borderRadius: '16px',
-        border: '1px solid var(--glass-border)',
-        textAlign: 'center'
+    statBox: {
+        backgroundColor: '#18181b',
+        border: '1px solid #27272a',
+        borderRadius: '6px',
+        padding: '16px'
     },
     statLabel: {
-        fontSize: '0.8rem',
-        color: 'var(--text-secondary)',
-        marginBottom: '0.5rem'
+        display: 'block',
+        fontSize: '0.75rem',
+        color: '#71717a',
+        marginBottom: '4px'
     },
-    statValue: {
+    statVal: {
         fontSize: '1.75rem',
-        fontWeight: 800
+        fontWeight: 600,
+        color: '#f4f4f5'
     },
     prForm: {
         display: 'flex',
-        gap: '1rem',
-        marginBottom: '2.5rem',
-        alignItems: 'center',
-        padding: '1.5rem',
-        background: 'rgba(255,255,255,0.02)',
-        borderRadius: '20px',
-        border: '1px solid var(--glass-border)'
+        gap: '12px',
+        flexWrap: 'wrap',
+        marginBottom: '16px',
+        backgroundColor: '#18181b',
+        border: '1px solid #27272a',
+        borderRadius: '6px',
+        padding: '12px'
     },
     label: {
-        fontSize: '0.75rem',
-        color: 'var(--text-secondary)',
-        marginBottom: '0.5rem',
         display: 'block',
-        fontWeight: 600
+        fontSize: '0.6875rem',
+        color: '#71717a',
+        marginBottom: '4px'
     },
     input: {
         width: '100%',
-        background: 'var(--bg-primary)',
-        border: '1px solid var(--glass-border)',
-        borderRadius: '10px',
-        color: 'white',
-        padding: '0.75rem',
-        fontSize: '0.95rem',
-        outline: 'none'
+        backgroundColor: '#121215',
+        border: '1px solid #27272a',
+        color: '#f4f4f5',
+        borderRadius: '4px',
+        padding: '6px 10px',
+        fontSize: '0.8125rem'
     },
     scrollList: {
         display: 'flex',
         flexDirection: 'column',
-        gap: '0.75rem',
-        maxHeight: '400px',
-        overflowY: 'auto',
-        paddingRight: '0.5rem'
+        gap: '6px',
+        maxHeight: '300px',
+        overflowY: 'auto'
+    },
+    emptyState: {
+        padding: '24px',
+        textAlign: 'center',
+        border: '1px dashed #27272a',
+        borderRadius: '6px'
     },
     prRow: {
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
-        padding: '1.25rem',
-        background: 'rgba(255, 255, 255, 0.02)',
-        borderRadius: '16px',
-        border: '1px solid var(--glass-border)',
-        transition: 'all 0.2s ease'
+        padding: '10px 14px',
+        backgroundColor: '#18181b',
+        border: '1px solid #27272a',
+        borderRadius: '6px'
     },
-    dot: {
-        width: '8px',
-        height: '8px',
-        borderRadius: '50%',
-        background: 'var(--accent-primary)',
-        boxShadow: '0 0 10px var(--accent-primary)'
+    prTitle: {
+        fontSize: '0.8125rem',
+        fontWeight: 500,
+        color: '#f4f4f5',
+        margin: 0
     },
-    emptyState: {
-        textAlign: 'center',
-        padding: '3rem',
-        color: 'var(--text-secondary)',
-        background: 'rgba(0,0,0,0.2)',
-        borderRadius: '16px',
-        border: '1px dashed var(--glass-border)'
+    prDate: {
+        fontSize: '0.6875rem',
+        color: '#71717a',
+        margin: 0
     },
-    logoutBtnMobile: {
-        marginTop: '2rem',
-        width: '100%',
-        padding: '1rem',
-        borderRadius: '16px',
-        background: 'rgba(239, 68, 68, 0.1)',
-        color: 'var(--danger)',
-        border: '1px solid rgba(239, 68, 68, 0.2)',
+    prWeight: {
         fontSize: '1rem',
         fontWeight: 600,
-        cursor: 'pointer',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: '0.75rem'
+        color: '#3b82f6'
+    },
+    prReps: {
+        fontSize: '0.6875rem',
+        color: '#71717a',
+        margin: 0
     }
 }
 

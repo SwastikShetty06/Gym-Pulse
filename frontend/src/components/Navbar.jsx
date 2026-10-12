@@ -1,34 +1,187 @@
-import { NavLink } from 'react-router-dom'
-import { LayoutDashboard, Calendar, ClipboardCheck, User, LogOut, Dumbbell, Zap, MapPin } from 'lucide-react'
+import React from 'react'
+import { NavLink, useNavigate } from 'react-router-dom'
+import {
+    LayoutDashboard,
+    Calendar,
+    ClipboardCheck,
+    Users,
+    Shield,
+    User,
+    LogOut,
+    Activity,
+    Search
+} from 'lucide-react'
 import { useAuthStore } from '../store/authStore'
 
-const Navbar = () => {
+export const Navbar = () => {
     const { logout, user } = useAuthStore()
+    const navigate = useNavigate()
 
     const navItems = [
-        { path: '/', name: 'Dashboard', icon: LayoutDashboard },
-        { path: '/schedule', name: 'Schedule', icon: Calendar },
-        { path: '/attendance', name: 'Progress', icon: ClipboardCheck },
-        { path: '/social', name: 'Social', icon: Zap },
-        { path: '/my-gym', name: 'Clan', icon: MapPin },
-        { path: '/profile', name: 'Profile', icon: User },
+        { path: '/', name: 'Dashboard', shortName: 'Home', icon: LayoutDashboard },
+        { path: '/schedule', name: 'Schedule', shortName: 'Split', icon: Calendar },
+        { path: '/attendance', name: 'Progress', shortName: 'History', icon: ClipboardCheck },
+        { path: '/social', name: 'Social', shortName: 'Network', icon: Users },
+        { path: '/my-gym', name: 'Clan', shortName: 'Clan', icon: Shield },
     ]
 
-    return (
-        <nav style={styles.navbar} className="navbar-side">
-            <div style={styles.logoContainer} className="logo-container">
-                <div style={styles.logoBadge} className="logo-badge">
-                    <Dumbbell size={20} color="white" />
-                </div>
-                <h2 style={styles.logoText} className="logo-text">Gym<span className="gradient-text">Pulse</span></h2>
-            </div>
+    const triggerCommandPalette = () => {
+        window.dispatchEvent(
+            new KeyboardEvent('keydown', {
+                key: 'k',
+                metaKey: true,
+                bubbles: true
+            })
+        )
+    }
 
-            <div style={styles.navMenu} className="nav-menu">
-                <p style={styles.menuLabel} className="menu-label">Menu</p>
-                {navItems.map((item) => (
+    return (
+        <>
+            {/* ================================================= */}
+            {/* 1. MOBILE TOP APP BAR (Sticky header on <= 768px)  */}
+            {/* ================================================= */}
+            <header className="mobile-topbar" style={styles.mobileTopbar}>
+                <div style={styles.mobileTopLeft} onClick={() => navigate('/')}>
+                    <div style={styles.mobileLogoBadge}>
+                        <Activity size={16} color="#ffffff" />
+                    </div>
+                    <span style={styles.mobileBrandTitle}>GymPulse</span>
+                </div>
+
+                <div style={styles.mobileTopRight}>
+                    <button
+                        onClick={triggerCommandPalette}
+                        style={styles.mobileIconBtn}
+                        aria-label="Search and command palette"
+                        title="Search (Cmd+K)"
+                    >
+                        <Search size={16} color="#a1a1aa" />
+                    </button>
+
+                    <button
+                        onClick={() => navigate('/profile')}
+                        style={styles.mobileAvatarBtn}
+                        aria-label="View user profile"
+                        title="Profile"
+                    >
+                        {(user?.name?.[0] || 'A').toUpperCase()}
+                    </button>
+                </div>
+            </header>
+
+            {/* ================================================= */}
+            {/* 2. MOBILE BOTTOM NAVIGATION (Thumb bar on <= 768px)*/}
+            {/* ================================================= */}
+            <nav className="mobile-bottom-nav" style={styles.mobileBottomNav}>
+                {navItems.map((item) => {
+                    const IconComponent = item.icon
+                    return (
+                        <NavLink
+                            key={item.path}
+                            to={item.path}
+                            className={({ isActive }) =>
+                                `mobile-nav-tab ${isActive ? 'active-tab' : ''}`
+                            }
+                            style={({ isActive }) => ({
+                                ...styles.mobileTab,
+                                color: isActive ? '#3b82f6' : '#71717a'
+                            })}
+                        >
+                            {({ isActive }) => (
+                                <>
+                                    <div
+                                        style={{
+                                            ...styles.mobileTabIconWrapper,
+                                            backgroundColor: isActive
+                                                ? 'rgba(59, 130, 246, 0.12)'
+                                                : 'transparent'
+                                        }}
+                                    >
+                                        <IconComponent size={18} />
+                                    </div>
+                                    <span
+                                        style={{
+                                            ...styles.mobileTabLabel,
+                                            fontWeight: isActive ? 600 : 500,
+                                            color: isActive ? '#f4f4f5' : '#71717a'
+                                        }}
+                                    >
+                                        {item.shortName}
+                                    </span>
+                                </>
+                            )}
+                        </NavLink>
+                    )
+                })}
+            </nav>
+
+            {/* ================================================= */}
+            {/* 3. DESKTOP SIDEBAR (Fixed rail on > 768px)         */}
+            {/* ================================================= */}
+            <aside className="desktop-sidebar" style={styles.desktopNavbar}>
+                {/* Logo Header */}
+                <div style={styles.logoContainer}>
+                    <div style={styles.logoBadge}>
+                        <Activity size={18} color="#ffffff" />
+                    </div>
+                    <div>
+                        <h2 style={styles.logoText}>GymPulse</h2>
+                        <span style={styles.logoSubtext}>Tier-1 Athletics</span>
+                    </div>
+                </div>
+
+                {/* Command Palette Trigger */}
+                <button
+                    onClick={triggerCommandPalette}
+                    style={styles.searchTrigger}
+                    className="command-trigger"
+                    title="Open Command Palette (Cmd+K)"
+                >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <Search size={14} color="#71717a" />
+                        <span style={{ fontSize: '0.8125rem', color: '#71717a' }}>Quick jump...</span>
+                    </div>
+                    <kbd style={styles.kbd}>⌘K</kbd>
+                </button>
+
+                {/* Navigation Menu */}
+                <div style={styles.navMenu}>
+                    <p style={styles.menuLabel}>Workspace</p>
+                    {navItems.map((item) => {
+                        const IconComponent = item.icon
+                        return (
+                            <NavLink
+                                key={item.path}
+                                to={item.path}
+                                className={({ isActive }) =>
+                                    `nav-link ${isActive ? 'active' : ''}`
+                                }
+                                style={({ isActive }) => ({
+                                    ...styles.navLink,
+                                    ...(isActive ? styles.activeNavLink : {})
+                                })}
+                            >
+                                {({ isActive }) => (
+                                    <>
+                                        <div
+                                            style={{
+                                                ...styles.iconBox,
+                                                backgroundColor: isActive ? '#27272a' : 'transparent',
+                                                color: isActive ? '#3b82f6' : '#a1a1aa'
+                                            }}
+                                            className="icon-box"
+                                        >
+                                            <IconComponent size={16} />
+                                        </div>
+                                        <span style={styles.linkText}>{item.name}</span>
+                                    </>
+                                )}
+                            </NavLink>
+                        )
+                    })}
+
                     <NavLink
-                        key={item.path}
-                        to={item.path}
+                        to="/profile"
                         className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
                         style={({ isActive }) => ({
                             ...styles.navLink,
@@ -37,154 +190,295 @@ const Navbar = () => {
                     >
                         {({ isActive }) => (
                             <>
-                                <div className="icon-box" style={{
-                                    ...styles.iconBox,
-                                    background: isActive ? 'var(--accent-primary)' : 'rgba(255,255,255,0.03)',
-                                    boxShadow: isActive ? '0 4px 12px rgba(99, 102, 241, 0.3)' : 'none'
-                                }}>
-                                    <item.icon size={18} color={isActive ? 'white' : 'var(--text-secondary)'} />
+                                <div
+                                    style={{
+                                        ...styles.iconBox,
+                                        backgroundColor: isActive ? '#27272a' : 'transparent',
+                                        color: isActive ? '#3b82f6' : '#a1a1aa'
+                                    }}
+                                    className="icon-box"
+                                >
+                                    <User size={16} />
                                 </div>
-                                <span style={styles.linkText} className="link-text">{item.name}</span>
-                                {isActive && <div style={styles.activePill} className="active-pill" />}
+                                <span style={styles.linkText}>Profile</span>
                             </>
                         )}
                     </NavLink>
-                ))}
-            </div>
-
-            <div style={styles.bottomSection} className="bottom-section">
-                <div className="glass user-card" style={styles.userCard}>
-                    <div style={styles.userAvatar} className="user-avatar">
-                        <Zap size={14} fill="white" color="white" />
-                    </div>
-                    <div style={styles.userInfo} className="user-info">
-                        <p style={styles.userName}>{user?.name ? user.name.split(' ')[0] : 'Member'}</p>
-                        <p style={styles.userRole}>Elite Plan</p>
-                    </div>
                 </div>
 
-                <button onClick={logout} className="hover-lift logout-btn" style={styles.logoutBtn}>
-                    <div className="icon-box" style={{ ...styles.iconBox, background: 'rgba(239, 68, 68, 0.1)' }}>
-                        <LogOut size={18} color="var(--danger)" />
+                {/* Footer Profile & Logout */}
+                <div style={styles.bottomSection}>
+                    <div style={styles.userCard}>
+                        <div style={styles.userAvatar}>
+                            {(user?.name ? user.name[0] : 'A').toUpperCase()}
+                        </div>
+                        <div style={styles.userInfo}>
+                            <span style={styles.userName}>{user?.name || 'Athlete'}</span>
+                            <span style={styles.userRole}>{user?.email || 'Active Member'}</span>
+                        </div>
                     </div>
-                    <span>Sign Out</span>
-                </button>
-            </div>
-        </nav>
+
+                    <button
+                        onClick={logout}
+                        style={styles.logoutBtn}
+                        className="logout-btn"
+                        title="Sign Out"
+                    >
+                        <LogOut size={15} color="#ef4444" />
+                        <span>Sign Out</span>
+                    </button>
+                </div>
+            </aside>
+        </>
     )
 }
 
 const styles = {
-    navbar: {
+    // 1. Mobile Topbar
+    mobileTopbar: {
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        height: 'var(--mobile-topbar-height)',
+        backgroundColor: '#121215',
+        borderBottom: '1px solid #27272a',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: '0 16px',
+        zIndex: 9998,
+        boxSizing: 'border-box'
+    },
+    mobileTopLeft: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px',
+        cursor: 'pointer'
+    },
+    mobileLogoBadge: {
+        width: '26px',
+        height: '26px',
+        borderRadius: '6px',
+        backgroundColor: '#18181b',
+        border: '1px solid #27272a',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center'
+    },
+    mobileBrandTitle: {
+        fontSize: '0.9375rem',
+        fontWeight: 600,
+        color: '#f4f4f5',
+        letterSpacing: '-0.02em'
+    },
+    mobileTopRight: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px'
+    },
+    mobileIconBtn: {
+        width: '36px',
+        height: '36px',
+        borderRadius: '6px',
+        backgroundColor: '#18181b',
+        border: '1px solid #27272a',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        cursor: 'pointer'
+    },
+    mobileAvatarBtn: {
+        width: '32px',
+        height: '32px',
+        borderRadius: '6px',
+        backgroundColor: '#27272a',
+        border: '1px solid #3f3f46',
+        color: '#f4f4f5',
+        fontSize: '0.8125rem',
+        fontWeight: 600,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        cursor: 'pointer'
+    },
+
+    // 2. Mobile Bottom Nav
+    mobileBottomNav: {
+        position: 'fixed',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        height: 'calc(var(--mobile-nav-height) + env(safe-area-inset-bottom, 0px))',
+        backgroundColor: '#121215',
+        borderTop: '1px solid #27272a',
+        display: 'flex',
+        alignItems: 'flex-start',
+        justifyContent: 'space-around',
+        paddingTop: '6px',
+        paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+        zIndex: 9998,
+        boxSizing: 'border-box'
+    },
+    mobileTab: {
+        flex: 1,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        textDecoration: 'none',
+        gap: '2px',
+        height: '46px',
+        minWidth: '48px',
+        touchAction: 'manipulation'
+    },
+    mobileTabIconWrapper: {
+        width: '28px',
+        height: '24px',
+        borderRadius: '4px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center'
+    },
+    mobileTabLabel: {
+        fontSize: '0.6875rem',
+        letterSpacing: '0.01em'
+    },
+
+    // 3. Desktop Sidebar
+    desktopNavbar: {
         width: '260px',
         height: '100vh',
         position: 'fixed',
         left: 0,
         top: 0,
-        background: 'var(--bg-secondary)',
-        borderRight: '1px solid var(--glass-border)',
+        backgroundColor: '#121215',
+        borderRight: '1px solid #27272a',
         display: 'flex',
         flexDirection: 'column',
-        padding: '2rem 1.5rem',
+        padding: '20px 16px',
         zIndex: 1000,
-        transition: 'all 0.3s ease'
+        boxSizing: 'border-box'
     },
     logoContainer: {
         display: 'flex',
         alignItems: 'center',
-        gap: '0.75rem',
-        marginBottom: '3.5rem',
-        paddingLeft: '0.5rem'
+        gap: '10px',
+        marginBottom: '16px',
+        paddingLeft: '4px'
     },
     logoBadge: {
-        width: '36px',
-        height: '36px',
-        borderRadius: '10px',
-        background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))',
+        width: '30px',
+        height: '30px',
+        borderRadius: '6px',
+        backgroundColor: '#18181b',
+        border: '1px solid #27272a',
         display: 'flex',
         alignItems: 'center',
-        justifyContent: 'center',
-        boxShadow: '0 4px 12px rgba(99, 102, 241, 0.3)'
+        justifyContent: 'center'
     },
     logoText: {
-        fontSize: '1.4rem',
-        fontWeight: 800,
-        letterSpacing: '-0.03em',
-        fontFamily: 'var(--font-header)'
+        fontSize: '1rem',
+        fontWeight: 600,
+        color: '#f4f4f5',
+        lineHeight: 1.1,
+        letterSpacing: '-0.02em',
+        margin: 0
+    },
+    logoSubtext: {
+        fontSize: '0.6875rem',
+        color: '#71717a',
+        textTransform: 'uppercase',
+        letterSpacing: '0.05em'
+    },
+    searchTrigger: {
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        backgroundColor: '#18181b',
+        border: '1px solid #27272a',
+        borderRadius: '6px',
+        padding: '8px 10px',
+        marginBottom: '20px',
+        cursor: 'pointer',
+        width: '100%'
+    },
+    kbd: {
+        fontSize: '0.6875rem',
+        color: '#71717a',
+        border: '1px solid #27272a',
+        borderRadius: '4px',
+        padding: '1px 5px',
+        fontFamily: 'monospace'
     },
     navMenu: {
         display: 'flex',
         flexDirection: 'column',
-        gap: '0.5rem',
+        gap: '2px',
         flex: 1
     },
     menuLabel: {
-        fontSize: '0.7rem',
+        fontSize: '0.6875rem',
         textTransform: 'uppercase',
-        letterSpacing: '0.1em',
-        color: 'var(--text-secondary)',
-        marginBottom: '1rem',
-        paddingLeft: '0.75rem',
-        fontWeight: 700
+        letterSpacing: '0.05em',
+        color: '#71717a',
+        marginBottom: '6px',
+        paddingLeft: '8px',
+        fontWeight: 600
     },
     navLink: {
         textDecoration: 'none',
-        color: 'var(--text-secondary)',
-        fontSize: '0.95rem',
-        fontWeight: 600,
+        color: '#a1a1aa',
+        fontSize: '0.875rem',
+        fontWeight: 500,
         display: 'flex',
         alignItems: 'center',
-        gap: '1rem',
-        padding: '0.875rem 1rem',
-        borderRadius: '14px',
-        transition: 'all 0.2s ease',
-        position: 'relative'
+        gap: '10px',
+        padding: '7px 8px',
+        borderRadius: '6px',
+        transition: 'background-color 100ms ease, color 100ms ease'
     },
     activeNavLink: {
-        color: 'white',
-        background: 'rgba(255, 255, 255, 0.04)',
-    },
-    linkText: {
-        transition: 'all 0.2s ease'
+        color: '#ffffff',
+        backgroundColor: '#18181b'
     },
     iconBox: {
-        width: '34px',
-        height: '34px',
-        borderRadius: '10px',
+        width: '26px',
+        height: '26px',
+        borderRadius: '4px',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        transition: 'all 0.2s ease',
         flexShrink: 0
     },
-    activePill: {
-        position: 'absolute',
-        left: '-1.5rem',
-        width: '4px',
-        height: '24px',
-        background: 'var(--accent-primary)',
-        borderRadius: '0 4px 4px 0',
-        boxShadow: '0 0 12px var(--accent-primary)'
+    linkText: {
+        flex: 1
     },
     bottomSection: {
         marginTop: 'auto',
         display: 'flex',
         flexDirection: 'column',
-        gap: '1rem'
+        gap: '8px',
+        borderTop: '1px solid #27272a',
+        paddingTop: '14px'
     },
     userCard: {
-        padding: '0.75rem',
+        padding: '6px 8px',
         display: 'flex',
         alignItems: 'center',
-        gap: '0.75rem',
-        borderRadius: '16px',
-        border: '1px solid var(--glass-border)'
+        gap: '10px',
+        borderRadius: '6px',
+        backgroundColor: '#18181b',
+        border: '1px solid #27272a'
     },
     userAvatar: {
-        width: '36px',
-        height: '36px',
-        borderRadius: '50%',
-        background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))',
+        width: '28px',
+        height: '28px',
+        borderRadius: '4px',
+        backgroundColor: '#27272a',
+        color: '#f4f4f5',
+        fontWeight: 600,
+        fontSize: '0.8125rem',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -193,94 +487,73 @@ const styles = {
     userInfo: {
         display: 'flex',
         flexDirection: 'column',
-        overflow: 'hidden'
+        overflow: 'hidden',
+        flex: 1
     },
     userName: {
-        fontSize: '0.9rem',
-        fontWeight: 700,
-        lineHeight: 1.2,
+        fontSize: '0.8125rem',
+        fontWeight: 500,
+        color: '#f4f4f5',
         whiteSpace: 'nowrap',
         overflow: 'hidden',
         textOverflow: 'ellipsis'
     },
     userRole: {
-        fontSize: '0.75rem',
-        color: 'var(--text-secondary)'
+        fontSize: '0.6875rem',
+        color: '#71717a',
+        whiteSpace: 'nowrap',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis'
     },
     logoutBtn: {
-        background: 'none',
-        border: 'none',
+        background: 'transparent',
+        border: '1px solid transparent',
         display: 'flex',
         alignItems: 'center',
-        gap: '1rem',
-        padding: '0.875rem 1rem',
-        color: 'var(--danger)',
-        fontWeight: 600,
-        fontSize: '0.95rem',
+        gap: '8px',
+        padding: '7px 8px',
+        color: '#ef4444',
+        fontWeight: 500,
+        fontSize: '0.8125rem',
         width: '100%',
-        textAlign: 'left',
         cursor: 'pointer',
-        borderRadius: '14px',
-        transition: 'all 0.2s ease'
+        borderRadius: '6px'
     }
 }
 
-// Inject mobile styles
+// Responsive display switching
 if (typeof window !== 'undefined') {
-    const styleSheet = document.createElement("style")
-    styleSheet.innerText = `
-        @media (max-width: 1024px) {
-            .navbar-side {
-                width: 80px !important;
-                padding: 2rem 0.5rem !important;
-                align-items: center !important;
+    const existingStyle = document.getElementById('navbar-mobile-responsive-styles')
+    if (!existingStyle) {
+        const styleSheet = document.createElement("style")
+        styleSheet.id = 'navbar-mobile-responsive-styles'
+        styleSheet.innerText = `
+            @media (min-width: 769px) {
+                .mobile-topbar, .mobile-bottom-nav {
+                    display: none !important;
+                }
+                .desktop-sidebar {
+                    display: flex !important;
+                }
             }
-            .nav-link .link-text, .menu-label, .logo-text, .user-info, .logout-btn span { display: none !important; }
-            .logo-container { padding: 0 !important; margin-bottom: 2rem !important; justify-content: center !important; }
-            .user-card { padding: 0.5rem !important; border: none !important; background: none !important; justify-content: center !important; }
-            .active-pill { left: -0.5rem !important; }
-        }
-        @media (max-width: 768px) {
-            .navbar-side {
-                top: auto !important;
-                bottom: 0 !important;
-                width: 100% !important;
-                height: 70px !important;
-                flex-direction: row !important;
-                padding: 0 0.5rem !important;
-                border-right: none !important;
-                border-top: 1px solid var(--glass-border) !important;
-                border-radius: 20px 20px 0 0 !important;
-                align-items: center !important;
-                justify-content: space-around !important;
-                backdrop-filter: blur(20px) !important;
-                -webkit-backdrop-filter: blur(20px) !important;
-                background: rgba(14, 14, 17, 0.8) !important;
+            @media (max-width: 768px) {
+                .desktop-sidebar {
+                    display: none !important;
+                }
+                .mobile-topbar {
+                    display: flex !important;
+                }
+                .mobile-bottom-nav {
+                    display: flex !important;
+                }
+                .mobile-nav-tab:active {
+                    background-color: #18181b;
+                    border-radius: 6px;
+                }
             }
-            .logo-container, .menu-label, .bottom-section, .active-pill { display: none !important; }
-            .nav-menu { flex-direction: row !important; width: 100% !important; justify-content: space-around !important; margin: 0 !important; align-items: center !important; }
-            .nav-link { 
-                padding: 0.5rem !important; 
-                background: none !important; 
-                flex-direction: column !important; 
-                gap: 4px !important; 
-                border-radius: 12px !important;
-                flex: 1 !important;
-                justify-content: center !important;
-            }
-            .nav-link .icon-box { 
-                background: none !important; 
-                box-shadow: none !important; 
-                width: 24px !important; 
-                height: 24px !important; 
-                margin: 0 auto !important;
-            }
-            .nav-link.active .icon-box svg { color: var(--accent-primary) !important; }
-            .nav-link .link-text { display: none !important; }
-            .nav-link.active .link-text { color: white !important; }
-        }
-    `
-    document.head.appendChild(styleSheet)
+        `
+        document.head.appendChild(styleSheet)
+    }
 }
 
 export default Navbar

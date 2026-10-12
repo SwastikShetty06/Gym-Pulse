@@ -1,5 +1,7 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import Navbar from './components/Navbar'
+import CommandPalette from './components/CommandPalette'
+import ToastContainer from './components/Toast'
 import Dashboard from './pages/Dashboard'
 import Login from './pages/Login'
 import Register from './pages/Register'
@@ -9,7 +11,6 @@ import Profile from './pages/Profile'
 import Social from './pages/Social'
 import MyGym from './pages/MyGym'
 import { useAuthStore } from './store/authStore'
-
 import { useEffect } from 'react'
 
 function App() {
@@ -19,13 +20,31 @@ function App() {
         checkAuth()
     }, [])
 
-    if (loading) return <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-primary)', color: 'white' }}>Loading Pulse...</div>
+    if (loading) {
+        return (
+            <div
+                style={{
+                    height: '100vh',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    background: 'var(--bg-primary)',
+                    color: 'var(--text-secondary)',
+                    fontSize: 'var(--text-body)'
+                }}
+            >
+                Loading...
+            </div>
+        )
+    }
 
     return (
         <Router basename={import.meta.env.BASE_URL}>
             <div className="app-container">
                 {user && <Navbar />}
-                <main className="main-content" style={{ paddingLeft: !user ? '0' : '260px' }}>
+                <CommandPalette />
+                <ToastContainer />
+                <main className={`main-content ${user ? 'has-sidebar' : ''}`}>
                     <Routes>
                         <Route path="/login" element={!user ? <Login /> : <Navigate to="/" />} />
                         <Route path="/register" element={!user ? <Register /> : <Navigate to="/" />} />

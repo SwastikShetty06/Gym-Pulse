@@ -1,9 +1,9 @@
-import { useState } from 'react'
+import React, { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
-import { Dumbbell, Mail, Lock, User, Loader2 } from 'lucide-react'
+import { Activity, Mail, Lock, User, Loader2 } from 'lucide-react'
 
-const Register = () => {
+export const Register = () => {
     const [name, setName] = useState('')
     const [email, setEmail] = useState('')
     const [password, setPassword] = useState('')
@@ -16,57 +16,84 @@ const Register = () => {
 
     return (
         <div style={styles.container}>
-            <div className="glass" style={styles.card}>
+            <div style={styles.card}>
                 <div style={styles.header}>
-                    <Dumbbell size={48} color="var(--accent-primary)" />
-                    <h1 style={{ marginTop: '1rem', fontSize: '2rem' }}>Get Started</h1>
-                    <p style={{ color: 'var(--text-secondary)' }}>Join the elite gym squad</p>
+                    <div style={styles.logoBadge}>
+                        <Activity size={20} color="#ffffff" />
+                    </div>
+                    <h1 style={{ marginTop: '12px', marginBottom: '4px' }}>Create Athlete Account</h1>
+                    <p style={{ color: '#71717a', fontSize: '0.8125rem' }}>
+                        Register to initialize your personalized volume tracking split
+                    </p>
                 </div>
 
                 <form onSubmit={handleSubmit} style={styles.form}>
                     <div style={styles.inputGroup}>
-                        <User size={18} style={styles.icon} />
-                        <input
-                            type="text"
-                            placeholder="Full Name"
-                            value={name}
-                            onChange={(e) => setName(e.target.value)}
-                            style={styles.input}
-                            required
-                        />
-                    </div>
-                    <div style={styles.inputGroup}>
-                        <Mail size={18} style={styles.icon} />
-                        <input
-                            type="email"
-                            placeholder="Email "
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
-                            style={styles.input}
-                            required
-                        />
-                    </div>
-                    <div style={styles.inputGroup}>
-                        <Lock size={18} style={styles.icon} />
-                        <input
-                            type="password"
-                            placeholder="Password"
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            style={styles.input}
-                            required
-                        />
+                        <label style={styles.label}>Full Name</label>
+                        <div style={styles.inputWrapper}>
+                            <User size={15} color="#71717a" style={styles.icon} />
+                            <input
+                                type="text"
+                                placeholder="Alex Mercer"
+                                value={name}
+                                onChange={(e) => setName(e.target.value)}
+                                style={styles.input}
+                                required
+                            />
+                        </div>
                     </div>
 
-                    {error && <p style={styles.error}>{error}</p>}
+                    <div style={styles.inputGroup}>
+                        <label style={styles.label}>Email Address</label>
+                        <div style={styles.inputWrapper}>
+                            <Mail size={15} color="#71717a" style={styles.icon} />
+                            <input
+                                type="email"
+                                placeholder="athlete@domain.com"
+                                value={email}
+                                onChange={(e) => setEmail(e.target.value)}
+                                style={styles.input}
+                                required
+                            />
+                        </div>
+                    </div>
 
-                    <button type="submit" className="btn-primary" style={styles.button} disabled={loading}>
-                        {loading ? <Loader2 className="spinning" size={20} /> : 'Create Account'}
+                    <div style={styles.inputGroup}>
+                        <label style={styles.label}>Master Password</label>
+                        <div style={styles.inputWrapper}>
+                            <Lock size={15} color="#71717a" style={styles.icon} />
+                            <input
+                                type="password"
+                                placeholder="••••••••••••"
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                style={styles.input}
+                                required
+                            />
+                        </div>
+                    </div>
+
+                    {error && (
+                        <div style={styles.errorBox}>
+                            <span>{error}</span>
+                        </div>
+                    )}
+
+                    <button
+                        type="submit"
+                        className="btn-primary"
+                        style={styles.submitBtn}
+                        disabled={loading}
+                    >
+                        {loading ? <Loader2 size={16} className="spinning" /> : 'Register Account'}
                     </button>
                 </form>
 
-                <p style={{ marginTop: '1.5rem', textAlign: 'center' }}>
-                    Already have an account? <Link to="/login" style={{ color: 'var(--accent-primary)', textDecoration: 'none' }}>Log In</Link>
+                <p style={styles.footerText}>
+                    Already registered?{' '}
+                    <Link to="/login" style={styles.link}>
+                        Sign In
+                    </Link>
                 </p>
             </div>
         </div>
@@ -79,77 +106,88 @@ const styles = {
         justifyContent: 'center',
         alignItems: 'center',
         minHeight: '100vh',
-        background: '#09090b',
-        backgroundImage: `
-            radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.15) 0px, transparent 50%),
-            radial-gradient(at 100% 0%, rgba(168, 85, 247, 0.15) 0px, transparent 50%),
-            radial-gradient(at 100% 100%, rgba(59, 130, 246, 0.15) 0px, transparent 50%),
-            radial-gradient(at 0% 100%, rgba(236, 72, 153, 0.15) 0px, transparent 50%)
-        `,
-        backgroundSize: '100% 100%',
+        backgroundColor: '#09090b',
+        padding: '16px'
     },
     card: {
         width: '100%',
-        maxWidth: '420px',
-        padding: '3rem',
-        borderRadius: '24px',
-        background: 'rgba(255, 255, 255, 0.03)',
-        backdropFilter: 'blur(20px)',
-        WebkitBackdropFilter: 'blur(20px)',
-        border: '1px solid rgba(255, 255, 255, 0.08)',
-        boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
+        maxWidth: '380px',
+        padding: '32px 24px',
+        borderRadius: '8px',
+        backgroundColor: '#121215',
+        border: '1px solid #27272a'
     },
     header: {
         textAlign: 'center',
-        marginBottom: '2.5rem'
+        marginBottom: '24px'
+    },
+    logoBadge: {
+        width: '36px',
+        height: '36px',
+        borderRadius: '8px',
+        backgroundColor: '#18181b',
+        border: '1px solid #27272a',
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center'
     },
     form: {
         display: 'flex',
         flexDirection: 'column',
-        gap: '1.25rem'
+        gap: '14px'
     },
     inputGroup: {
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '4px'
+    },
+    label: {
+        fontSize: '0.75rem',
+        color: '#a1a1aa',
+        fontWeight: 500
+    },
+    inputWrapper: {
         position: 'relative',
         display: 'flex',
-        alignItems: 'center',
-        transition: 'transform 0.2s'
+        alignItems: 'center'
     },
     icon: {
         position: 'absolute',
-        left: '1.25rem',
-        color: 'var(--text-secondary)',
-        zIndex: 10
+        left: '10px',
+        pointerEvents: 'none'
     },
     input: {
         width: '100%',
-        padding: '1rem 1rem 1rem 3.5rem',
-        background: 'rgba(0, 0, 0, 0.2)',
-        border: '1px solid rgba(255, 255, 255, 0.1)',
-        borderRadius: '16px',
-        color: 'white',
-        fontSize: '1rem',
-        transition: 'all 0.3s ease',
-        outline: 'none'
+        backgroundColor: '#18181b',
+        border: '1px solid #27272a',
+        color: '#f4f4f5',
+        borderRadius: '6px',
+        padding: '8px 12px 8px 34px',
+        fontSize: '0.8125rem'
     },
-    button: {
-        width: '100%',
-        marginTop: '0.5rem',
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        padding: '1rem',
-        borderRadius: '16px',
-        fontWeight: 600,
-        fontSize: '1rem',
-        letterSpacing: '0.5px'
-    },
-    error: {
+    errorBox: {
+        padding: '8px 12px',
+        backgroundColor: 'rgba(239, 68, 68, 0.1)',
+        border: '1px solid rgba(239, 68, 68, 0.2)',
+        borderRadius: '6px',
         color: '#ef4444',
-        fontSize: '0.875rem',
+        fontSize: '0.75rem'
+    },
+    submitBtn: {
+        width: '100%',
+        padding: '9px 16px',
+        marginTop: '6px'
+    },
+    footerText: {
+        marginTop: '20px',
         textAlign: 'center',
-        background: 'rgba(239, 68, 68, 0.1)',
-        padding: '0.75rem',
-        borderRadius: '12px'
+        fontSize: '0.8125rem',
+        color: '#71717a'
+    },
+    link: {
+        color: '#3b82f6',
+        textDecoration: 'none',
+        fontWeight: 500
     }
 }
 

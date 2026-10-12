@@ -1,164 +1,266 @@
-import { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import axios from 'axios'
-import { X, Flame, BarChart2, Zap, Copy, ChevronDown, ChevronUp, Lock } from 'lucide-react'
+import {
+    X,
+    Flame,
+    BarChart2,
+    Activity,
+    Copy,
+    ChevronDown,
+    ChevronUp,
+    Lock
+} from 'lucide-react'
 import { AreaChart, Area, XAxis, Tooltip, ResponsiveContainer } from 'recharts'
 import { useAuthStore } from '../store/authStore'
+import { useToastStore } from '../store/toastStore'
 
-const FriendProfileModal = ({ friend, onClose }) => {
+export const FriendProfileModal = ({ friend, onClose }) => {
     const { token } = useAuthStore()
+    const { addToast } = useToastStore()
     const [expandedDay, setExpandedDay] = useState(null)
+    const [confirmingBulkCopy, setConfirmingBulkCopy] = useState(false)
+
+    // Universal Esc listener to dismiss modal
+    useEffect(() => {
+        const handleKeyDown = (e) => {
+            if (e.key === 'Escape') {
+                e.preventDefault()
+                onClose()
+            }
+        }
+        window.addEventListener('keydown', handleKeyDown)
+        return () => window.removeEventListener('keydown', handleKeyDown)
+    }, [onClose])
+
+    if (!friend) return null
 
     const copySchedule = async (daySchedule) => {
         try {
-            await axios.post('/api/schedule', {
-                day: daySchedule.day,
-                exercises: daySchedule.exercises
-            }, { headers: { 'x-auth-token': token } })
-            alert(`Copied ${daySchedule.day}'s workout to your schedule!`)
+            await axios.post(
+                '/api/schedule',
+                {
+                    day: daySchedule.day,
+                    exercises: daySchedule.exercises
+                },
+                { headers: { 'x-auth-token': token } }
+            )
+            addToast({
+                message: `Adopted ${daySchedule.day} routine (${daySchedule.exercises.length} movements)`,
+                type: 'success'
+            })
         } catch (err) {
             console.error(err)
-            alert('Failed to copy schedule')
+            addToast({
+                message: `Failed to adopt routine: ${err.message}`,
+                type: 'error'
+            })
         }
     }
 
     const copyFullSchedule = async () => {
-        if (!friend.schedule || friend.schedule.length === 0) return;
-        if (!window.confirm(`Are you sure you want to copy ${friend.user.name}'s entire weekly schedule to yours? This will update your existing days.`)) return;
+        if (!friend.schedule || friend.schedule.length === 0) return
 
         try {
-            await axios.post('/api/schedule/bulk', {
-                schedules: friend.schedule
-            }, { headers: { 'x-auth-token': token } })
-            alert(`Successfully copied ${friend.user.name}'s weekly routine!`)
+            await axios.post(
+                '/api/schedule/bulk',
+                { schedules: friend.schedule },
+                { headers: { 'x-auth-token': token } }
+            )
+            setConfirmingBulkCopy(false)
+            addToast({
+                message: `Adopted complete weekly program from ${friend.user?.name}`,
+                type: 'success'
+            })
         } catch (err) {
             console.error(err)
-            alert('Failed to copy schedule')
+            addToast({
+                message: `Failed to copy program: ${err.message}`,
+                type: 'error'
+            })
         }
     }
 
-    if (!friend) return null
+    const chartData = (friend.attendance || [])
+        .slice(0, 14)
+        .reverse()
+        .map((a) => ({
+            date: new Date(a.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+            duration: Number(a.duration) || 0
+        }))
 
     return (
-        <div className="social-modal-overlay" style={styles.modalOverlay} onClick={onClose}>
-            <div className="glass radial-glow social-modal-content" style={{ ...styles.modalContent, overflowY: 'auto', maxHeight: '90vh' }} onClick={e => e.stopPropagation()}>
-                <button style={styles.closeBtn} onClick={onClose}><X size={24} /></button>
+        <div
+            style={styles.modalOverlay}
+            onClick={onClose}
+            className="social-modal-overlay"
+        >
+            <div
+                style={styles.modalContent}
+                onClick={(e) => e.stopPropagation()}
+                className="social-modal-content"
+            >
+                {/* Close Button with ESC hint */}
+                <div style={styles.topActions}>
+                    <kbd style={styles.kbd}>ESC</kbd>
+                    <button
+                        onClick={onClose}
+                        style={styles.closeBtn}
+                        aria-label="Close profile modal"
+                    >
+                        <X size={16} color="#a1a1aa" />
+                    </button>
+                </div>
 
+                {/* Profile Header */}
                 <div style={styles.modalHeader}>
-                    <div style={styles.largeAvatar}>{friend.user.name ? friend.user.name[0] : '?'}</div>
+                    <div style={styles.avatar}>
+                        {(friend.user?.name?.[0] || 'A').toUpperCase()}
+                    </div>
                     <div>
-                        <h2 style={{ fontSize: '2rem' }}>{friend.user.name}</h2>
-                        <p style={{ color: 'var(--accent-primary)', fontWeight: 600 }}>Elite Performance Profile</p>
+                        <h2 style={styles.name}>{friend.user?.name || 'Athlete'}</h2>
+                        <span style={styles.subtitle}>Verified Training Profile</span>
                     </div>
                 </div>
 
-                <div style={styles.modalStats} className="modal-stats-mobile">
+                {/* Telemetry Stats Bar */}
+                <div style={styles.statsBar}>
                     {friend.isPrivate ? (
-                        <div style={{ width: '100%', textAlign: 'center', padding: '1rem' }}>
-                            <div style={{
-                                width: '60px', height: '60px', borderRadius: '50%',
-                                background: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                margin: '0 auto 1rem'
-                            }}>
-                                <Lock size={30} color="var(--text-secondary)" />
-                            </div>
-                            <h3 style={{ marginBottom: '0.5rem' }}>Private Account</h3>
-                            <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
-                                Follow this user to see their stats and schedule.
+                        <div style={styles.privateNotice}>
+                            <Lock size={20} color="#71717a" />
+                            <p style={{ fontSize: '0.8125rem', color: '#71717a', margin: 0 }}>
+                                Private Profile. Connect with this athlete to view detailed metrics and split routines.
                             </p>
                         </div>
                     ) : (
                         <>
-                            <div style={styles.miniStat} className="mini-stat-mobile">
-                                <Flame size={24} color="#f97316" />
+                            <div style={styles.statItem}>
+                                <Flame size={16} color="#f59e0b" />
                                 <div>
-                                    <p style={styles.statLabel}>Streak</p>
-                                    <p style={styles.statValue}>{friend.streak || 0} Days</p>
+                                    <span style={styles.statLabel}>Streak</span>
+                                    <span style={styles.statVal} className="tabular-nums">
+                                        {friend.streak || 0}d
+                                    </span>
                                 </div>
                             </div>
-                            <div style={styles.miniStat} className="mini-stat-mobile">
-                                <BarChart2 size={24} color="var(--success)" />
+
+                            <div style={styles.statItem}>
+                                <BarChart2 size={16} color="#10b981" />
                                 <div>
-                                    <p style={styles.statLabel}>Total PRs</p>
-                                    <p style={styles.statValue}>{friend.prs.length}</p>
+                                    <span style={styles.statLabel}>Total PRs</span>
+                                    <span style={styles.statVal} className="tabular-nums">
+                                        {friend.prs?.length || 0}
+                                    </span>
                                 </div>
                             </div>
-                            <div style={styles.miniStat} className="mini-stat-mobile">
-                                <Zap size={24} color="var(--accent-secondary)" />
+
+                            <div style={styles.statItem}>
+                                <Activity size={16} color="#3b82f6" />
                                 <div>
-                                    <p style={styles.statLabel}>Consistency</p>
-                                    <p style={styles.statValue}>
+                                    <span style={styles.statLabel}>Consistency</span>
+                                    <span style={styles.statVal} className="tabular-nums">
                                         {friend.consistency || 0}%
-                                    </p>
+                                    </span>
                                 </div>
                             </div>
                         </>
                     )}
                 </div>
 
-                {/* Weekly Schedule Detailed */}
                 {!friend.isPrivate && (
                     <>
-                        {/* Weekly Schedule Detailed */}
-                        <div style={{ marginTop: '2.5rem' }}>
-                            {/* ... schedule content ... */}
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                                <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Weekly Training Split</p>
+                        {/* Weekly Training Split */}
+                        <div style={{ marginTop: '20px' }}>
+                            <div style={styles.sectionHeader}>
+                                <h3>Programmed Split</h3>
                                 {friend.schedule && friend.schedule.length > 0 && (
-                                    <button
-                                        onClick={copyFullSchedule}
-                                        style={{
-                                            padding: '0.5rem 1rem', borderRadius: '8px', border: 'none',
-                                            background: 'linear-gradient(135deg, var(--accent-primary), #4f46e5)', color: 'white',
-                                            fontSize: '0.8.5rem', fontWeight: 600, cursor: 'pointer',
-                                            display: 'flex', alignItems: 'center', gap: '0.5rem',
-                                            boxShadow: '0 4px 12px rgba(99, 102, 241, 0.3)'
-                                        }}>
-                                        <Copy size={16} />
-                                        <span>Copy Full Week</span>
-                                    </button>
+                                    <div>
+                                        {confirmingBulkCopy ? (
+                                            <div style={{ display: 'flex', gap: '6px' }}>
+                                                <button
+                                                    onClick={copyFullSchedule}
+                                                    className="btn-primary"
+                                                    style={{ padding: '4px 8px', fontSize: '0.75rem' }}
+                                                >
+                                                    Confirm Overwrite
+                                                </button>
+                                                <button
+                                                    onClick={() => setConfirmingBulkCopy(false)}
+                                                    className="btn-secondary"
+                                                    style={{ padding: '4px 8px', fontSize: '0.75rem' }}
+                                                >
+                                                    Cancel
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <button
+                                                onClick={() => setConfirmingBulkCopy(true)}
+                                                className="btn-secondary"
+                                                style={{ padding: '4px 8px', fontSize: '0.75rem' }}
+                                            >
+                                                <Copy size={12} />
+                                                <span>Adopt Entire Week</span>
+                                            </button>
+                                        )}
+                                    </div>
                                 )}
                             </div>
 
                             {friend.schedule && friend.schedule.length > 0 ? (
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                                    {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map(day => {
-                                        const daySched = friend.schedule.find(s => s.day === day);
-                                        const isExpanded = expandedDay === day;
-
-                                        if (!daySched) return null;
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                    {[
+                                        'Monday',
+                                        'Tuesday',
+                                        'Wednesday',
+                                        'Thursday',
+                                        'Friday',
+                                        'Saturday',
+                                        'Sunday'
+                                    ].map((day) => {
+                                        const daySched = friend.schedule.find((s) => s.day === day)
+                                        const isExpanded = expandedDay === day
+                                        if (!daySched) return null
 
                                         return (
-                                            <div key={day} style={{
-                                                padding: '1rem', borderRadius: '12px',
-                                                background: 'rgba(255,255,255,0.02)',
-                                                border: '1px solid var(--glass-border)',
-                                                cursor: 'pointer'
-                                            }} onClick={() => setExpandedDay(isExpanded ? null : day)}>
-                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }} className="schedule-row-mobile">
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                                                        {isExpanded ? <ChevronUp size={18} color="var(--accent-primary)" /> : <ChevronDown size={18} color="var(--text-secondary)" />}
+                                            <div
+                                                key={day}
+                                                style={styles.dayRow}
+                                                onClick={() => setExpandedDay(isExpanded ? null : day)}
+                                            >
+                                                <div style={styles.daySummary}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                        {isExpanded ? (
+                                                            <ChevronUp size={14} color="#3b82f6" />
+                                                        ) : (
+                                                            <ChevronDown size={14} color="#71717a" />
+                                                        )}
                                                         <div>
-                                                            <p style={{ fontWeight: 700 }}>{day}</p>
-                                                            <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{daySched.exercises.length} Exercises</p>
+                                                            <span style={styles.dayLabel}>{day}</span>
+                                                            <span style={styles.dayExCount} className="tabular-nums">
+                                                                {' • '}{daySched.exercises?.length || 0} movements
+                                                            </span>
                                                         </div>
                                                     </div>
+
                                                     <button
-                                                        onClick={(e) => { e.stopPropagation(); copySchedule(daySched); }}
-                                                        style={{
-                                                            padding: '0.4rem 0.8rem', borderRadius: '8px', border: 'none',
-                                                            background: 'rgba(99, 102, 241, 0.1)', color: 'var(--accent-primary)',
-                                                            fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer'
-                                                        }}>
-                                                        Copy to Mine
+                                                        onClick={(e) => {
+                                                            e.stopPropagation()
+                                                            copySchedule(daySched)
+                                                        }}
+                                                        className="btn-secondary"
+                                                        style={{ padding: '3px 8px', fontSize: '0.6875rem' }}
+                                                    >
+                                                        Adopt Day
                                                     </button>
                                                 </div>
 
                                                 {isExpanded && (
-                                                    <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid var(--glass-border)' }}>
-                                                        {daySched.exercises.map((ex, i) => (
-                                                            <div key={i} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', fontSize: '0.9rem' }}>
-                                                                <span style={{ color: 'var(--text-primary)' }}>{ex.name}</span>
-                                                                <span style={{ color: 'var(--text-secondary)' }}>{ex.sets} x {ex.reps}</span>
+                                                    <div style={styles.expandedExercises}>
+                                                        {daySched.exercises?.map((ex, i) => (
+                                                            <div key={i} style={styles.exSubRow}>
+                                                                <span style={{ color: '#f4f4f5' }}>{ex.name}</span>
+                                                                <span style={{ color: '#71717a' }} className="tabular-nums">
+                                                                    {ex.sets} × {ex.reps}
+                                                                </span>
                                                             </div>
                                                         ))}
                                                     </div>
@@ -168,44 +270,62 @@ const FriendProfileModal = ({ friend, onClose }) => {
                                     })}
                                 </div>
                             ) : (
-                                <p style={{ color: 'var(--text-secondary)', fontStyle: 'italic' }}>No schedule public.</p>
+                                <p style={styles.emptyText}>No routine programmed.</p>
                             )}
                         </div>
 
-                        {/* Chart in Modal */}
-                        <div style={{ height: '200px', width: '100%', marginTop: '2.5rem' }}>
-                            <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginBottom: '1rem', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Workout Volume</p>
-                            <ResponsiveContainer width="100%" height="100%">
-                                <AreaChart data={friend.attendance.slice(0, 14).reverse().map(a => ({
-                                    date: new Date(a.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-                                    duration: a.duration
-                                }))}>
-                                    <defs>
-                                        <linearGradient id="colorFriend" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="5%" stopColor="var(--accent-primary)" stopOpacity={0.3} />
-                                            <stop offset="95%" stopColor="var(--accent-primary)" stopOpacity={0} />
-                                        </linearGradient>
-                                    </defs>
-                                    <XAxis dataKey="date" hide />
-                                    <Tooltip contentStyle={{ background: 'var(--bg-tertiary)', border: 'none', borderRadius: '8px' }} itemStyle={{ color: 'white' }} />
-                                    <Area type="monotone" dataKey="duration" stroke="var(--accent-primary)" fill="url(#colorFriend)" strokeWidth={3} />
-                                </AreaChart>
-                            </ResponsiveContainer>
+                        {/* Volume Graph */}
+                        <div style={{ marginTop: '20px' }}>
+                            <div style={styles.sectionHeader}>
+                                <h3>Training History (Minutes)</h3>
+                            </div>
+                            <div style={{ height: '140px', width: '100%' }}>
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <AreaChart data={chartData}>
+                                        <XAxis dataKey="date" stroke="#71717a" fontSize={11} hide />
+                                        <Tooltip
+                                            contentStyle={{
+                                                backgroundColor: '#18181b',
+                                                border: '1px solid #27272a',
+                                                borderRadius: '6px',
+                                                fontSize: '0.75rem'
+                                            }}
+                                            itemStyle={{ color: '#f4f4f5' }}
+                                        />
+                                        <Area
+                                            type="monotone"
+                                            dataKey="duration"
+                                            stroke="#3b82f6"
+                                            fill="#3b82f6"
+                                            fillOpacity={0.15}
+                                            strokeWidth={2}
+                                        />
+                                    </AreaChart>
+                                </ResponsiveContainer>
+                            </div>
                         </div>
 
-                        <div style={styles.prScroller}>
-                            <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginBottom: '1rem', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Personal Records Vault</p>
-                            <div className="pr-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '1rem' }}>
-                                {friend.prs.map(pr => (
-                                    <div key={pr._id} style={{ ...styles.modalPrRow, border: '1px solid var(--glass-border)', borderRadius: '12px', background: 'rgba(255,255,255,0.02)', flexDirection: 'column', alignItems: 'flex-start', gap: '0.5rem' }}>
-                                        <div>
-                                            <p style={{ fontWeight: 600, fontSize: '0.9rem' }}>{pr.exercise}</p>
-                                            <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{new Date(pr.date).toLocaleDateString()}</p>
+                        {/* Personal Records Vault */}
+                        <div style={{ marginTop: '20px' }}>
+                            <div style={styles.sectionHeader}>
+                                <h3>Personal Records Vault</h3>
+                            </div>
+                            <div style={styles.prGrid}>
+                                {friend.prs && friend.prs.length > 0 ? (
+                                    friend.prs.map((pr) => (
+                                        <div key={pr._id} style={styles.prCard}>
+                                            <span style={styles.prName}>{pr.exercise}</span>
+                                            <div style={{ display: 'flex', alignItems: 'baseline', gap: '3px' }}>
+                                                <span style={styles.prWeight} className="tabular-nums">
+                                                    {pr.weight}
+                                                </span>
+                                                <span style={{ fontSize: '0.6875rem', color: '#71717a' }}>kg</span>
+                                            </div>
                                         </div>
-                                        <p style={{ fontWeight: 800, color: 'var(--accent-primary)', fontSize: '1.25rem' }}>{pr.weight}<span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginLeft: '2px' }}>kg</span></p>
-                                    </div>
-                                ))}
-                                {friend.prs.length === 0 && <p style={{ color: 'var(--text-secondary)', fontStyle: 'italic', gridColumn: 'span 2' }}>No records yet.</p>}
+                                    ))
+                                ) : (
+                                    <p style={styles.emptyText}>No verified PRs on file.</p>
+                                )}
                             </div>
                         </div>
                     </>
@@ -217,29 +337,181 @@ const FriendProfileModal = ({ friend, onClose }) => {
 
 const styles = {
     modalOverlay: {
-        position: 'fixed', top: 0, left: 0, width: '100%', height: '100%',
-        background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(8px)',
-        zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem'
+        position: 'fixed',
+        inset: 0,
+        backgroundColor: 'rgba(0, 0, 0, 0.75)',
+        backdropFilter: 'blur(4px)',
+        zIndex: 2000,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '24px'
     },
     modalContent: {
-        width: '100%', maxWidth: '500px', padding: '3rem 2rem', position: 'relative',
-        borderRadius: '24px', border: '1px solid var(--glass-border)'
+        width: '100%',
+        maxWidth: '560px',
+        backgroundColor: '#121215',
+        border: '1px solid #27272a',
+        borderRadius: '8px',
+        padding: '24px',
+        position: 'relative',
+        maxHeight: '85vh',
+        overflowY: 'auto',
+        boxSizing: 'border-box'
     },
-    closeBtn: { position: 'absolute', top: '1.5rem', right: '1.5rem', background: 'none', border: 'none', color: 'white', cursor: 'pointer' },
-    modalHeader: { display: 'flex', alignItems: 'center', gap: '1.5rem', marginBottom: '2.5rem' },
-    largeAvatar: {
-        width: '80px', height: '80px', borderRadius: '24px',
-        background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))',
-        display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2rem', fontWeight: 900
+    topActions: {
+        position: 'absolute',
+        top: '16px',
+        right: '16px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px'
     },
-    modalStats: { display: 'flex', gap: '2rem', background: 'rgba(255,255,255,0.03)', padding: '1.5rem', borderRadius: '20px' },
-    miniStat: { display: 'flex', alignItems: 'center', gap: '1rem' },
-    statLabel: { fontSize: '0.75rem', color: 'var(--text-secondary)' },
-    statValue: { fontSize: '1.25rem', fontWeight: 800 },
-    prScroller: { marginTop: '2.5rem' },
-    modalPrRow: {
-        display: 'flex', justifyContent: 'space-between', padding: '1rem',
-        borderBottom: '1px solid var(--glass-border)'
+    kbd: {
+        fontSize: '0.6875rem',
+        color: '#71717a',
+        border: '1px solid #27272a',
+        borderRadius: '4px',
+        padding: '1px 5px',
+        fontFamily: 'monospace'
+    },
+    closeBtn: {
+        background: 'transparent',
+        border: 'none',
+        cursor: 'pointer',
+        padding: '4px',
+        display: 'flex',
+        alignItems: 'center'
+    },
+    modalHeader: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '14px',
+        marginBottom: '20px'
+    },
+    avatar: {
+        width: '44px',
+        height: '44px',
+        borderRadius: '6px',
+        backgroundColor: '#18181b',
+        border: '1px solid #27272a',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        fontSize: '1.125rem',
+        fontWeight: 600,
+        color: '#f4f4f5'
+    },
+    name: {
+        fontSize: '1.125rem',
+        fontWeight: 600,
+        color: '#f4f4f5',
+        margin: 0
+    },
+    subtitle: {
+        fontSize: '0.75rem',
+        color: '#71717a'
+    },
+    statsBar: {
+        display: 'flex',
+        gap: '16px',
+        backgroundColor: '#18181b',
+        border: '1px solid #27272a',
+        borderRadius: '6px',
+        padding: '12px 16px'
+    },
+    privateNotice: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '10px',
+        width: '100%'
+    },
+    statItem: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px',
+        flex: 1
+    },
+    statLabel: {
+        display: 'block',
+        fontSize: '0.6875rem',
+        color: '#71717a'
+    },
+    statVal: {
+        display: 'block',
+        fontSize: '0.875rem',
+        fontWeight: 600,
+        color: '#f4f4f5'
+    },
+    sectionHeader: {
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: '10px'
+    },
+    dayRow: {
+        backgroundColor: '#18181b',
+        border: '1px solid #27272a',
+        borderRadius: '6px',
+        padding: '10px 12px',
+        cursor: 'pointer'
+    },
+    daySummary: {
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center'
+    },
+    dayLabel: {
+        fontSize: '0.8125rem',
+        fontWeight: 500,
+        color: '#f4f4f5'
+    },
+    dayExCount: {
+        fontSize: '0.75rem',
+        color: '#71717a'
+    },
+    expandedExercises: {
+        marginTop: '8px',
+        paddingTop: '8px',
+        borderTop: '1px solid #27272a',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '4px'
+    },
+    exSubRow: {
+        display: 'flex',
+        justifyContent: 'space-between',
+        fontSize: '0.75rem'
+    },
+    prGrid: {
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))',
+        gap: '8px'
+    },
+    prCard: {
+        backgroundColor: '#18181b',
+        border: '1px solid #27272a',
+        borderRadius: '6px',
+        padding: '8px 10px'
+    },
+    prName: {
+        display: 'block',
+        fontSize: '0.75rem',
+        color: '#a1a1aa',
+        marginBottom: '2px',
+        whiteSpace: 'nowrap',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis'
+    },
+    prWeight: {
+        fontSize: '0.9375rem',
+        fontWeight: 600,
+        color: '#f4f4f5'
+    },
+    emptyText: {
+        fontSize: '0.75rem',
+        color: '#71717a',
+        margin: 0
     }
 }
 

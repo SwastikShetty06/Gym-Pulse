@@ -1,18 +1,37 @@
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import axios from 'axios'
-import { Plus, Trash2, Save, MoreHorizontal } from 'lucide-react'
+import { Plus, Trash2, Check, Minus } from 'lucide-react'
 import { useAuthStore } from '../store/authStore'
+import { useToastStore } from '../store/toastStore'
 
-const Schedule = () => {
+const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+const DAY_SHORT = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+
+export const Schedule = () => {
     const { token } = useAuthStore()
+    const { addToast } = useToastStore()
+    const [searchParams, setSearchParams] = useSearchParams()
+
+    // URL is Single Source of Truth
+    const dayParam = searchParams.get('day')
+    const activeDay = DAYS.includes(dayParam) ? dayParam : 'Monday'
+
+    const setActiveDay = (day) => {
+        setSearchParams({ day })
+    }
+
     const [schedules, setSchedules] = useState([])
-    const [activeDay, setActiveDay] = useState('Monday')
     const [exercises, setExercises] = useState([])
     const [exerciseLibrary, setExerciseLibrary] = useState([])
     const [loading, setLoading] = useState(true)
+    const [saving, setSaving] = useState(false)
+    const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
 
-    const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+    const rollbackSnapshotRef = useRef([])
+    const draftKey = `gympulse_draft_schedule_${activeDay}`
 
+    // Fetch initial schedule and exercise library
     useEffect(() => {
         const fetchData = async () => {
             try {
@@ -21,12 +40,34 @@ const Schedule = () => {
                     axios.get('/api/schedule', config),
                     axios.get('/api/exercises', config)
                 ])
-                setSchedules(schedRes.data)
-                setExerciseLibrary(libRes.data)
+                setSchedules(schedRes.data || [])
+                setExerciseLibrary(libRes.data || [])
+
+                // Check for locally saved draft first
+                const savedDraft = localStorage.getItem(draftKey)
+                if (savedDraft) {
+                    try {
+                        const parsed = JSON.parse(savedDraft)
+                        setExercises(parsed)
+                        setHasUnsavedChanges(true)
+                        rollbackSnapshotRef.current = schedRes.data.find(s => s.day === activeDay)?.exercises || []
+                        setLoading(false)
+                        return
+                    } catch {
+                        localStorage.removeItem(draftKey)
+                    }
+                }
+
                 const current = schedRes.data.find(s => s.day === activeDay)
-                setExercises(current ? current.exercises : [])
+                const initialExercises = current ? current.exercises : []
+                setExercises(initialExercises)
+                rollbackSnapshotRef.current = initialExercises
             } catch (err) {
                 console.error(err)
+                addToast({
+                    message: `Failed to load routines: ${err.message}`,
+                    type: 'error'
+                })
             } finally {
                 setLoading(false)
             }
@@ -34,227 +75,551 @@ const Schedule = () => {
         fetchData()
     }, [token])
 
+    // Synchronize exercise list when activeDay changes
     useEffect(() => {
+        const savedDraft = localStorage.getItem(draftKey)
+        if (savedDraft) {
+            try {
+                const parsed = JSON.parse(savedDraft)
+                setExercises(parsed)
+                setHasUnsavedChanges(true)
+                const serverCurrent = schedules.find(s => s.day === activeDay)
+                rollbackSnapshotRef.current = serverCurrent ? serverCurrent.exercises : []
+                return
+            } catch {
+                localStorage.removeItem(draftKey)
+            }
+        }
+
         const current = schedules.find(s => s.day === activeDay)
-        setExercises(current ? current.exercises : [])
-    }, [activeDay, schedules])
+        const dayExercises = current ? current.exercises : []
+        setExercises(dayExercises)
+        rollbackSnapshotRef.current = dayExercises
+        setHasUnsavedChanges(false)
+    }, [activeDay, schedules, draftKey])
 
-    const addExercise = () => {
-        setExercises([...exercises, { name: '', sets: 3, reps: '10-12' }])
-    }
+    // Optimistic mutation: Add exercise
+    const addExercise = useCallback(() => {
+        const updated = [...exercises, { name: '', sets: 3, reps: '10' }]
+        setExercises(updated)
+        setHasUnsavedChanges(true)
+        localStorage.setItem(draftKey, JSON.stringify(updated))
+    }, [exercises, draftKey])
 
+    // Optimistic mutation: Update exercise
     const updateExercise = (index, field, value) => {
-        const newEx = [...exercises]
-        newEx[index][field] = value
-        setExercises(newEx)
+        const updated = exercises.map((item, i) => {
+            if (i === index) {
+                return { ...item, [field]: value }
+            }
+            return item
+        })
+        setExercises(updated)
+        setHasUnsavedChanges(true)
+        localStorage.setItem(draftKey, JSON.stringify(updated))
     }
 
-    const remoteExercise = (index) => {
-        setExercises(exercises.filter((_, i) => i !== index))
+    // Quick set counter increment/decrement for mobile
+    const adjustSets = (index, delta) => {
+        const currentSets = Number(exercises[index]?.sets) || 1
+        const newSets = Math.max(1, Math.min(20, currentSets + delta))
+        updateExercise(index, 'sets', newSets)
     }
 
+    // Optimistic mutation: Remove exercise
+    const removeExercise = (index) => {
+        const updated = exercises.filter((_, i) => i !== index)
+        setExercises(updated)
+        setHasUnsavedChanges(true)
+        localStorage.setItem(draftKey, JSON.stringify(updated))
+    }
+
+    // Save schedule with optimistic update & rollback error toast
     const saveSchedule = async () => {
-        try {
-            const res = await axios.post('/api/schedule', {
-                day: activeDay,
-                exercises
-            }, { headers: { 'x-auth-token': token } })
+        if (saving) return
+        setSaving(true)
 
-            const newSchedules = schedules.filter(s => s.day !== activeDay)
-            setSchedules([...newSchedules, res.data])
-            alert('Schedule saved successfully!')
+        const previousExercises = rollbackSnapshotRef.current
+        const previousSchedules = [...schedules]
+
+        // Optimistically update schedule list in memory
+        const optimisticSchedules = schedules.filter(s => s.day !== activeDay)
+        setSchedules([...optimisticSchedules, { day: activeDay, exercises }])
+        setHasUnsavedChanges(false)
+        localStorage.removeItem(draftKey)
+
+        addToast({
+            message: `${activeDay} routine saved successfully`,
+            type: 'success'
+        })
+
+        try {
+            const res = await axios.post(
+                '/api/schedule',
+                { day: activeDay, exercises },
+                { headers: { 'x-auth-token': token } }
+            )
+            rollbackSnapshotRef.current = res.data.exercises || exercises
         } catch (err) {
-            console.error(err)
+            setExercises(previousExercises)
+            setSchedules(previousSchedules)
+            rollbackSnapshotRef.current = previousExercises
+            setHasUnsavedChanges(true)
+            localStorage.setItem(draftKey, JSON.stringify(previousExercises))
+
+            addToast({
+                message: `Server failed to persist routine: ${err.message}`,
+                type: 'error',
+                action: {
+                    label: 'Retry',
+                    onClick: () => saveSchedule()
+                }
+            })
+        } finally {
+            setSaving(false)
         }
     }
 
+    // Keyboard shortcuts
+    useEffect(() => {
+        const handleKeyDown = (e) => {
+            if ((e.metaKey || e.ctrlKey) && e.key === 's') {
+                e.preventDefault()
+                saveSchedule()
+                return
+            }
+            if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+                e.preventDefault()
+                addExercise()
+                return
+            }
+        }
+        window.addEventListener('keydown', handleKeyDown)
+        return () => window.removeEventListener('keydown', handleKeyDown)
+    }, [saveSchedule, addExercise])
+
     return (
-        <div className="schedule-container" style={styles.container}>
+        <div style={styles.container} className="schedule-container">
+            {/* Header */}
             <header style={styles.header}>
-                <h1 style={{ fontSize: '2.5rem' }}>Weekly <span className="gradient-text">Planner</span></h1>
-                <p style={{ color: 'var(--text-secondary)' }}>Design your perfect workout routine</p>
+                <div style={styles.headerLeft}>
+                    <h1>Weekly Split</h1>
+                    <p style={styles.headerSub}>
+                        Program exercise volume for each session.
+                    </p>
+                </div>
+                <div style={styles.headerActions}>
+                    {hasUnsavedChanges && (
+                        <span style={styles.unsavedBadge}>Draft</span>
+                    )}
+                    <button
+                        onClick={saveSchedule}
+                        disabled={saving}
+                        className="btn-primary"
+                        style={styles.saveBtn}
+                    >
+                        <Check size={14} />
+                        <span>{saving ? 'Saving...' : 'Save'}</span>
+                    </button>
+                </div>
             </header>
 
-            <div className="day-selector" style={styles.daySelector}>
-                {days.map(day => (
-                    <button
-                        key={day}
-                        onClick={() => setActiveDay(day)}
-                        className="glass"
-                        style={{
-                            ...styles.dayBtn,
-                            background: activeDay === day ? 'var(--accent-primary)' : 'var(--bg-tertiary)',
-                            color: activeDay === day ? 'white' : 'var(--text-secondary)'
-                        }}
-                    >
-                        {day.substring(0, 3)}
-                    </button>
-                ))}
+            {/* Horizontal Day Selector (Touch-Scrollable strip) */}
+            <div style={styles.daySelector} className="day-selector" role="tablist">
+                {DAYS.map((day, index) => {
+                    const isActive = activeDay === day
+                    return (
+                        <button
+                            key={day}
+                            role="tab"
+                            aria-selected={isActive}
+                            onClick={() => setActiveDay(day)}
+                            style={{
+                                ...styles.dayBtn,
+                                backgroundColor: isActive ? '#18181b' : 'transparent',
+                                borderColor: isActive ? '#3b82f6' : '#27272a',
+                                color: isActive ? '#f4f4f5' : '#71717a'
+                            }}
+                        >
+                            <span style={styles.dayShortName}>{DAY_SHORT[index]}</span>
+                            <span style={styles.dayIndexNumber} className="tabular-nums">
+                                {index + 1}
+                            </span>
+                        </button>
+                    )
+                })}
             </div>
 
-            <div className="glass planner-card" style={styles.plannerCard}>
+            {/* Routine Planner Card */}
+            <section style={styles.plannerCard} className="planner-card">
                 <div style={styles.cardHeader}>
-                    <h2>{activeDay} Routine</h2>
-                    <button onClick={addExercise} className="btn-primary" style={styles.addBtn}>
-                        <Plus size={18} /> Add Exercise
+                    <div>
+                        <h2>{activeDay} Routine</h2>
+                        <span style={styles.exerciseCount} className="tabular-nums">
+                            {exercises.length} {exercises.length === 1 ? 'movement' : 'movements'}
+                        </span>
+                    </div>
+
+                    <button
+                        onClick={addExercise}
+                        className="btn-secondary"
+                        style={styles.addBtn}
+                        title="Add Movement"
+                    >
+                        <Plus size={14} />
+                        <span>Add Movement</span>
                     </button>
                 </div>
 
-                <div style={styles.exerciseGrid}>
-                    {exercises.length === 0 ? (
-                        <p style={{ textAlign: 'center', color: 'var(--text-secondary)', padding: '3rem' }}>
-                            No exercises added for {activeDay}. Get started!
+                {loading ? (
+                    <div style={styles.loadingContainer}>
+                        <span>Loading routines...</span>
+                    </div>
+                ) : exercises.length === 0 ? (
+                    <div style={styles.emptyState}>
+                        <p style={styles.emptyTitle}>No movements programmed for {activeDay}</p>
+                        <p style={styles.emptySubtitle}>
+                            Tap below to program target sets and reps.
                         </p>
-                    ) : (
-                        exercises.map((ex, i) => (
-                            <div key={i} className="glass" style={styles.exCard}>
-                                <div className="ex-main" style={styles.exMain}>
+                        <button
+                            onClick={addExercise}
+                            className="btn-primary"
+                            style={{ marginTop: '12px', width: '100%' }}
+                        >
+                            <Plus size={14} /> Add Movement
+                        </button>
+                    </div>
+                ) : (
+                    <div style={styles.movementList}>
+                        {exercises.map((ex, index) => (
+                            <div key={index} style={styles.movementCard} className="movement-card">
+                                {/* Movement Name Input (Full width on smartphone) */}
+                                <div style={{ width: '100%' }}>
                                     <input
-                                        placeholder="Exercise Name"
+                                        type="text"
+                                        placeholder="Exercise name (e.g. Bench Press)"
                                         list="exercise-options"
                                         value={ex.name}
-                                        onChange={(e) => updateExercise(i, 'name', e.target.value)}
-                                        style={styles.exInput}
+                                        onChange={(e) => updateExercise(index, 'name', e.target.value)}
+                                        style={styles.nameInput}
                                     />
                                     <datalist id="exercise-options">
-                                        {exerciseLibrary.map(lib => (
-                                            <option key={lib._id} value={lib.name} />
+                                        {exerciseLibrary.map((lib) => (
+                                            <option key={lib._id || lib.name} value={lib.name} />
                                         ))}
                                     </datalist>
-                                    <div className="ex-stats" style={styles.exStats}>
-                                        <div style={styles.statInput}>
-                                            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Sets</span>
+                                </div>
+
+                                {/* Set & Rep Controls Row */}
+                                <div style={styles.metricsRow}>
+                                    {/* Sets stepper */}
+                                    <div style={styles.metricGroup}>
+                                        <span style={styles.metricLabel}>Sets</span>
+                                        <div style={styles.stepperContainer}>
+                                            <button
+                                                type="button"
+                                                onClick={() => adjustSets(index, -1)}
+                                                style={styles.stepperBtn}
+                                                aria-label="Decrease sets"
+                                            >
+                                                <Minus size={12} />
+                                            </button>
                                             <input
                                                 type="number"
+                                                min="1"
+                                                max="30"
                                                 value={ex.sets}
-                                                onChange={(e) => updateExercise(i, 'sets', e.target.value)}
-                                                style={styles.smallInput}
+                                                onChange={(e) => updateExercise(index, 'sets', Number(e.target.value))}
+                                                style={styles.stepperInput}
+                                                className="tabular-nums"
                                             />
-                                        </div>
-                                        <div style={styles.statInput}>
-                                            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Reps</span>
-                                            <input
-                                                value={ex.reps}
-                                                onChange={(e) => updateExercise(i, 'reps', e.target.value)}
-                                                style={styles.smallInput}
-                                            />
+                                            <button
+                                                type="button"
+                                                onClick={() => adjustSets(index, 1)}
+                                                style={styles.stepperBtn}
+                                                aria-label="Increase sets"
+                                            >
+                                                <Plus size={12} />
+                                            </button>
                                         </div>
                                     </div>
-                                </div>
-                                <button onClick={() => remoteExercise(i)} style={styles.deleteBtn}>
-                                    <Trash2 size={18} color="var(--danger)" />
-                                </button>
-                            </div>
-                        ))
-                    )}
-                </div>
 
-                {exercises.length > 0 && (
-                    <button onClick={saveSchedule} className="btn-primary" style={styles.saveBtn}>
-                        <Save size={18} style={{ marginRight: '0.5rem' }} /> Save Changes
-                    </button>
+                                    {/* Reps Input */}
+                                    <div style={styles.metricGroup}>
+                                        <span style={styles.metricLabel}>Reps</span>
+                                        <input
+                                            type="text"
+                                            placeholder="8-12"
+                                            value={ex.reps}
+                                            onChange={(e) => updateExercise(index, 'reps', e.target.value)}
+                                            style={styles.repsInput}
+                                            className="tabular-nums"
+                                        />
+                                    </div>
+
+                                    {/* Delete Button */}
+                                    <div style={{ marginLeft: 'auto', alignSelf: 'flex-end' }}>
+                                        <button
+                                            type="button"
+                                            onClick={() => removeExercise(index)}
+                                            style={styles.removeBtn}
+                                            title="Delete movement"
+                                            aria-label="Delete movement"
+                                        >
+                                            <Trash2 size={16} color="#ef4444" />
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+
+                        {/* Bottom Actions for Mobile */}
+                        <div style={styles.bottomActionBar}>
+                            <button
+                                onClick={addExercise}
+                                className="btn-secondary"
+                                style={{ flex: 1 }}
+                            >
+                                <Plus size={14} /> Add Movement
+                            </button>
+                            <button
+                                onClick={saveSchedule}
+                                disabled={saving}
+                                className="btn-primary"
+                                style={{ flex: 1 }}
+                            >
+                                <Check size={14} /> {saving ? 'Saving...' : 'Save Routine'}
+                            </button>
+                        </div>
+                    </div>
                 )}
-            </div>
+            </section>
         </div>
     )
 }
 
 const styles = {
     container: {
-        padding: '2rem',
-        minHeight: '100vh',
-        maxWidth: '1200px',
-        margin: '0 auto'
+        padding: '16px',
+        maxWidth: '1080px',
+        margin: '0 auto',
+        minHeight: '100%',
+        boxSizing: 'border-box'
     },
     header: {
-        marginBottom: '2rem'
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: '12px',
+        marginBottom: '16px',
+        borderBottom: '1px solid #27272a',
+        paddingBottom: '12px'
+    },
+    headerLeft: {
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '2px'
+    },
+    headerSub: {
+        fontSize: '0.8125rem',
+        color: '#a1a1aa'
+    },
+    headerActions: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px'
+    },
+    unsavedBadge: {
+        fontSize: '0.6875rem',
+        color: '#f59e0b',
+        backgroundColor: 'rgba(245, 158, 11, 0.1)',
+        padding: '3px 6px',
+        borderRadius: '4px',
+        fontWeight: 500
+    },
+    saveBtn: {
+        padding: '8px 14px',
+        gap: '6px',
+        fontSize: '0.8125rem',
+        minHeight: '38px'
     },
     daySelector: {
         display: 'flex',
-        gap: '0.75rem',
-        marginBottom: '2rem',
+        gap: '6px',
+        backgroundColor: '#121215',
+        border: '1px solid #27272a',
+        borderRadius: '8px',
+        padding: '6px',
+        marginBottom: '16px',
         overflowX: 'auto',
-        paddingBottom: '0.5rem'
+        WebkitOverflowScrolling: 'touch'
     },
     dayBtn: {
-        padding: '0.75rem 1.25rem',
-        borderRadius: '12px',
-        minWidth: '80px',
-        fontWeight: 600,
-        border: '1px solid var(--glass-border)'
+        flex: 1,
+        minWidth: '44px',
+        minHeight: '46px',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: '2px',
+        padding: '6px 8px',
+        borderRadius: '6px',
+        border: '1px solid #27272a',
+        cursor: 'pointer',
+        fontSize: '0.75rem',
+        fontWeight: 500,
+        touchAction: 'manipulation'
+    },
+    dayShortName: {
+        fontSize: '0.75rem',
+        fontWeight: 600
+    },
+    dayIndexNumber: {
+        fontSize: '0.6875rem',
+        color: '#71717a'
     },
     plannerCard: {
-        padding: '1.5rem',
-        minHeight: '400px'
+        backgroundColor: '#121215',
+        border: '1px solid #27272a',
+        borderRadius: '8px',
+        padding: '16px'
     },
     cardHeader: {
         display: 'flex',
-        justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: '2rem'
+        justifyContent: 'space-between',
+        marginBottom: '14px'
+    },
+    exerciseCount: {
+        fontSize: '0.75rem',
+        color: '#71717a'
     },
     addBtn: {
-        display: 'flex',
-        alignItems: 'center',
-        gap: '0.5rem',
-        padding: '0.6rem 1rem'
+        padding: '6px 12px',
+        gap: '6px',
+        fontSize: '0.8125rem',
+        minHeight: '36px'
     },
-    exerciseGrid: {
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '1rem'
+    loadingContainer: {
+        padding: '36px',
+        textAlign: 'center',
+        color: '#71717a',
+        fontSize: '0.875rem'
     },
-    exCard: {
-        padding: '1.25rem',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '1rem',
-        background: 'var(--bg-tertiary)'
+    emptyState: {
+        padding: '32px 16px',
+        textAlign: 'center',
+        border: '1px dashed #27272a',
+        borderRadius: '8px',
+        backgroundColor: '#18181b'
     },
-    exMain: {
-        flex: 1,
-        display: 'flex',
-        gap: '1.5rem',
-        alignItems: 'center'
+    emptyTitle: {
+        fontSize: '0.875rem',
+        fontWeight: 500,
+        color: '#f4f4f5',
+        marginBottom: '4px'
     },
-    exInput: {
-        flex: 1,
-        background: 'transparent',
-        border: 'none',
-        borderBottom: '2px solid var(--glass-border)',
-        color: 'white',
-        padding: '0.5rem',
-        fontSize: '1.1rem',
-        outline: 'none'
+    emptySubtitle: {
+        fontSize: '0.8125rem',
+        color: '#71717a'
     },
-    exStats: {
-        display: 'flex',
-        gap: '1rem'
-    },
-    statInput: {
+    movementList: {
         display: 'flex',
         flexDirection: 'column',
-        gap: '0.25rem'
+        gap: '10px'
     },
-    smallInput: {
-        width: '60px',
-        background: 'var(--bg-primary)',
-        border: '1px solid var(--glass-border)',
-        borderRadius: '6px',
-        color: 'white',
-        padding: '0.4rem',
-        textAlign: 'center'
+    movementCard: {
+        backgroundColor: '#18181b',
+        border: '1px solid #27272a',
+        borderRadius: '8px',
+        padding: '12px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '10px'
     },
-    deleteBtn: {
-        background: 'transparent',
-        padding: '0.5rem'
-    },
-    saveBtn: {
-        marginTop: '2rem',
+    nameInput: {
         width: '100%',
+        backgroundColor: '#121215',
+        border: '1px solid #27272a',
+        color: '#f4f4f5',
+        fontSize: '0.875rem',
+        padding: '10px 12px',
+        borderRadius: '6px',
+        boxSizing: 'border-box'
+    },
+    metricsRow: {
         display: 'flex',
+        alignItems: 'center',
+        gap: '12px'
+    },
+    metricGroup: {
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '4px'
+    },
+    metricLabel: {
+        fontSize: '0.6875rem',
+        color: '#71717a',
+        textTransform: 'uppercase',
+        letterSpacing: '0.04em'
+    },
+    stepperContainer: {
+        display: 'flex',
+        alignItems: 'center',
+        backgroundColor: '#121215',
+        border: '1px solid #27272a',
+        borderRadius: '6px',
+        overflow: 'hidden'
+    },
+    stepperBtn: {
+        width: '32px',
+        height: '36px',
+        display: 'flex',
+        alignItems: 'center',
         justifyContent: 'center',
-        alignItems: 'center'
+        backgroundColor: 'transparent',
+        border: 'none',
+        color: '#a1a1aa',
+        cursor: 'pointer'
+    },
+    stepperInput: {
+        width: '38px',
+        height: '36px',
+        backgroundColor: 'transparent',
+        border: 'none',
+        color: '#f4f4f5',
+        fontSize: '0.875rem',
+        textAlign: 'center',
+        padding: '0',
+        fontWeight: 600
+    },
+    repsInput: {
+        width: '80px',
+        height: '36px',
+        backgroundColor: '#121215',
+        border: '1px solid #27272a',
+        color: '#f4f4f5',
+        fontSize: '0.875rem',
+        textAlign: 'center',
+        borderRadius: '6px',
+        padding: '4px 8px'
+    },
+    removeBtn: {
+        width: '36px',
+        height: '36px',
+        borderRadius: '6px',
+        backgroundColor: 'rgba(239, 68, 68, 0.08)',
+        border: '1px solid rgba(239, 68, 68, 0.2)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        cursor: 'pointer'
+    },
+    bottomActionBar: {
+        display: 'flex',
+        gap: '10px',
+        marginTop: '12px'
     }
 }
 

@@ -1,13 +1,15 @@
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
 import axios from 'axios'
 import Calendar from 'react-calendar'
 import 'react-calendar/dist/Calendar.css'
-import { CheckCircle, Award, BarChart2, TrendingUp, Calendar as CalendarIcon } from 'lucide-react'
+import { CheckCircle2, Flame, TrendingUp, Calendar as CalendarIcon, Activity } from 'lucide-react'
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
 import { useAuthStore } from '../store/authStore'
+import { useToastStore } from '../store/toastStore'
 
-const Attendance = () => {
+export const Attendance = () => {
     const { token } = useAuthStore()
+    const { addToast } = useToastStore()
     const [attendance, setAttendance] = useState([])
     const [loading, setLoading] = useState(true)
     const [date, setDate] = useState(new Date())
@@ -15,10 +17,16 @@ const Attendance = () => {
     useEffect(() => {
         const fetchAttendance = async () => {
             try {
-                const res = await axios.get('/api/attendance', { headers: { 'x-auth-token': token } })
-                setAttendance(res.data)
+                const res = await axios.get('/api/attendance', {
+                    headers: { 'x-auth-token': token }
+                })
+                setAttendance(res.data || [])
             } catch (err) {
                 console.error(err)
+                addToast({
+                    message: `Failed to sync attendance history: ${err.message}`,
+                    type: 'error'
+                })
             } finally {
                 setLoading(false)
             }
@@ -26,7 +34,7 @@ const Attendance = () => {
         fetchAttendance()
     }, [token])
 
-    const attendedDates = attendance.map(a => new Date(a.date).toDateString())
+    const attendedDates = attendance.map((a) => new Date(a.date).toDateString())
 
     const calculateStreak = () => {
         if (attendance.length === 0) return 0
@@ -35,22 +43,21 @@ const Attendance = () => {
         let curr = new Date()
         curr.setHours(0, 0, 0, 0)
 
-        // Fix: If today is not attended, start checking from yesterday
         if (!attendanceSet.has(curr.toDateString())) {
             curr.setDate(curr.getDate() - 1)
         }
 
         let misses = 0
-        let window = []
+        let windowArr = []
 
         while (true) {
             const dateStr = curr.toDateString()
-            const attended = attendanceSet.has(dateStr)
-            window.push(attended)
-            if (window.length > 7) {
-                if (!window.shift()) misses--
+            const hasAtt = attendanceSet.has(dateStr)
+            windowArr.push(hasAtt)
+            if (windowArr.length > 7) {
+                if (!windowArr.shift()) misses--
             }
-            if (attended) {
+            if (hasAtt) {
                 streak++
             } else {
                 misses++
@@ -71,32 +78,39 @@ const Attendance = () => {
         return null
     }
 
-    const attendanceRate = Math.round((attendance.length / 158) * 100)
+    const adherenceRate = Math.min(100, Math.round((attendance.length / Math.max(attendance.length, 30)) * 100))
 
-    const chartData = attendance
-        .slice(-14)
-        .map(a => ({
-            date: new Date(a.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-            duration: a.duration
-        }))
+    const chartData = attendance.slice(-14).map((a) => ({
+        date: new Date(a.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+        duration: Number(a.duration) || 0
+    }))
 
     return (
-        <div className="attendance-container" style={styles.container}>
+        <div style={styles.container} className="attendance-container">
+            {/* Header */}
             <header style={styles.header}>
-                <h1 style={{ fontSize: '3rem' }}>Your <span className="gradient-text">Progress</span></h1>
-                <p style={{ color: 'var(--text-secondary)', marginTop: '0.5rem' }}>Consistency is the path to elite performance. One rest day allowed per week.</p>
+                <div style={styles.headerLeft}>
+                    <h1>Progress & Consistency</h1>
+                    <p style={styles.headerSub}>
+                        Track attendance streaks, facility sessions, and aggregate workload volume.
+                    </p>
+                </div>
             </header>
 
-            <div className="bento-grid" style={styles.grid}>
-                {/* Calendar Card - Span 8 */}
-                <div className="glass hover-lift" style={{ ...styles.card, gridColumn: 'span 8', gridRow: 'span 2' }}>
+            <div style={styles.grid} className="bento-grid">
+                {/* Calendar Card */}
+                <div style={{ ...styles.card, gridColumn: 'span 8', gridRow: 'span 2' }}>
                     <div style={styles.cardHeader}>
                         <div style={styles.iconBox}>
-                            <CalendarIcon size={20} color="var(--accent-primary)" />
+                            <CalendarIcon size={16} color="#3b82f6" />
                         </div>
-                        <h3 style={{ marginLeft: '1rem' }}>Activity History</h3>
+                        <div>
+                            <h2>Activity Calendar</h2>
+                            <p style={styles.cardSub}>Verified session timestamps</p>
+                        </div>
                     </div>
-                    <div className="calendar-wrapper">
+
+                    <div className="calendar-wrapper" style={{ marginTop: '8px' }}>
                         <Calendar
                             onChange={setDate}
                             value={date}
@@ -106,60 +120,114 @@ const Attendance = () => {
                     </div>
                 </div>
 
-                {/* Streak Highlights - Span 4 */}
-                <div className="glass hover-lift radial-glow" style={{ ...styles.card, gridColumn: 'span 4' }}>
-                    <Award size={40} color="var(--accent-secondary)" style={{ marginBottom: '1rem' }} />
-                    <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Workout Streak</p>
-                    <p style={{ fontSize: '3.5rem', fontWeight: 800, lineHeight: 1, margin: '0.5rem 0' }}>{streak}</p>
-                    <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Days of elite consistency</p>
-                </div>
-
-                {/* Adherence Circle - Span 4 */}
-                <div className="glass hover-lift" style={{ ...styles.card, gridColumn: 'span 4' }}>
+                {/* Streak Highlight Card */}
+                <div style={{ ...styles.card, gridColumn: 'span 4' }}>
                     <div style={styles.cardHeader}>
                         <div style={styles.iconBox}>
-                            <CheckCircle size={20} color="var(--success)" />
+                            <Flame size={16} color="#f59e0b" />
                         </div>
-                        <h3 style={{ marginLeft: '1rem' }}>Adherence</h3>
+                        <div>
+                            <h3>Consistency Streak</h3>
+                            <p style={styles.cardSub}>Continuous active periods</p>
+                        </div>
                     </div>
-                    <p style={{ fontSize: '2.5rem', fontWeight: 800, marginBottom: '1rem' }}>{attendanceRate}%</p>
-                    <div style={styles.progressBar}>
-                        <div className="shimmer" style={{ ...styles.progressFill, width: `${attendanceRate}%` }} />
+
+                    <div style={{ marginTop: '8px' }}>
+                        <span style={styles.metricBig} className="tabular-nums">
+                            {streak}
+                        </span>
+                        <p style={styles.metricCaption}>
+                            Consecutive days tracked within adherence threshold
+                        </p>
                     </div>
-                    <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '1rem' }}>Based on your personal roadmap goals</p>
                 </div>
 
-                {/* Intensity Chart - Span 12 */}
-                <div className="glass hover-lift" style={{ ...styles.card, gridColumn: 'span 12' }}>
+                {/* Adherence Card */}
+                <div style={{ ...styles.card, gridColumn: 'span 4' }}>
                     <div style={styles.cardHeader}>
                         <div style={styles.iconBox}>
-                            <TrendingUp size={20} color="var(--accent-primary)" />
+                            <CheckCircle2 size={16} color="#10b981" />
                         </div>
-                        <h3 style={{ marginLeft: '1rem' }}>Volume & Intensity (Last 14 Sessions)</h3>
+                        <div>
+                            <h3>Program Adherence</h3>
+                            <p style={styles.cardSub}>Monthly goal completion</p>
+                        </div>
                     </div>
-                    <div style={{ height: '300px', width: '100%', marginTop: '1rem' }}>
+
+                    <div style={{ marginTop: '8px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                            <span style={styles.metricSubBig} className="tabular-nums">
+                                {adherenceRate}%
+                            </span>
+                            <span style={{ fontSize: '0.75rem', color: '#71717a' }} className="tabular-nums">
+                                {attendance.length} total sessions
+                            </span>
+                        </div>
+                        <div style={styles.progressBar}>
+                            <div
+                                style={{
+                                    height: '100%',
+                                    backgroundColor: '#10b981',
+                                    width: `${adherenceRate}%`,
+                                    transition: 'width 150ms ease-out'
+                                }}
+                            />
+                        </div>
+                    </div>
+                </div>
+
+                {/* Volume & Intensity Chart */}
+                <div style={{ ...styles.card, gridColumn: 'span 12' }}>
+                    <div style={styles.cardHeader}>
+                        <div style={styles.iconBox}>
+                            <TrendingUp size={16} color="#3b82f6" />
+                        </div>
+                        <div>
+                            <h2>Volume & Duration (Last 14 Sessions)</h2>
+                            <p style={styles.cardSub}>Recorded minutes per workout session</p>
+                        </div>
+                    </div>
+
+                    <div style={{ height: '220px', width: '100%', marginTop: '12px' }}>
                         <ResponsiveContainer width="100%" height="100%">
                             <AreaChart data={chartData}>
                                 <defs>
                                     <linearGradient id="colorDurProgress" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="5%" stopColor="var(--accent-primary)" stopOpacity={0.3} />
-                                        <stop offset="95%" stopColor="var(--accent-primary)" stopOpacity={0} />
+                                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.2} />
+                                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.0} />
                                     </linearGradient>
                                 </defs>
-                                <XAxis dataKey="date" stroke="var(--text-secondary)" fontSize={12} tickLine={false} axisLine={false} />
-                                <YAxis stroke="var(--text-secondary)" fontSize={12} tickLine={false} axisLine={false} />
+                                <XAxis
+                                    dataKey="date"
+                                    stroke="#71717a"
+                                    fontSize={12}
+                                    tickLine={false}
+                                    axisLine={false}
+                                />
+                                <YAxis
+                                    stroke="#71717a"
+                                    fontSize={12}
+                                    tickLine={false}
+                                    axisLine={false}
+                                    className="tabular-nums"
+                                />
                                 <Tooltip
-                                    contentStyle={{ background: 'var(--bg-tertiary)', border: '1px solid var(--glass-border)', borderRadius: '12px' }}
-                                    itemStyle={{ color: 'white' }}
+                                    contentStyle={{
+                                        backgroundColor: '#18181b',
+                                        border: '1px solid #27272a',
+                                        borderRadius: '6px',
+                                        fontSize: '0.8125rem'
+                                    }}
+                                    itemStyle={{ color: '#f4f4f5' }}
                                 />
                                 <Area
                                     type="monotone"
                                     dataKey="duration"
-                                    stroke="var(--accent-primary)"
+                                    stroke="#3b82f6"
                                     fillOpacity={1}
                                     fill="url(#colorDurProgress)"
-                                    strokeWidth={4}
-                                    animationDuration={2000}
+                                    strokeWidth={2}
+                                    animationDuration={300}
                                 />
                             </AreaChart>
                         </ResponsiveContainer>
@@ -168,131 +236,147 @@ const Attendance = () => {
             </div>
 
             <style>{`
-        .custom-calendar {
-          background: transparent !important;
-          border: none !important;
-          width: 100% !important;
-          color: white !important;
-          font-family: var(--font-header) !important;
-        }
-        .react-calendar__tile {
-          color: white !important;
-          padding: 1.5rem 0.5rem !important;
-          border-radius: 14px;
-          transition: all 0.2s ease;
-          position: relative;
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          gap: 4px;
-        }
-        .dot-indicator {
-          width: 6px;
-          height: 6px;
-          border-radius: 50%;
-          background: var(--success);
-          box-shadow: 0 0 10px var(--success);
-        }
-        .react-calendar__tile:hover {
-          background: rgba(255,255,255,0.05) !important;
-        }
-        .react-calendar__tile--active {
-          background: var(--accent-primary) !important;
-          color: white !important;
-          box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);
-        }
-        .react-calendar__navigation button {
-          color: white !important;
-          min-width: 44px;
-          background: none;
-          font-size: 1.2rem;
-          border-radius: 12px;
-        }
-        .react-calendar__navigation button:hover {
-          background: rgba(255,255,255,0.05) !important;
-        }
-        .react-calendar__month-view__weekdays__weekday {
-          color: var(--text-secondary) !important;
-          text-decoration: none !important;
-          font-weight: 700;
-          text-transform: uppercase;
-          font-size: 0.75rem;
-          padding-bottom: 1rem;
-        }
-        .react-calendar__month-view__days__day--neighboringMonth {
-          opacity: 0.2;
-        }
-      `}</style>
+                .custom-calendar {
+                    background: transparent !important;
+                    border: none !important;
+                    width: 100% !important;
+                    color: #f4f4f5 !important;
+                }
+                .react-calendar__tile {
+                    color: #f4f4f5 !important;
+                    padding: 12px 6px !important;
+                    border-radius: 6px;
+                    transition: background-color 100ms ease;
+                    position: relative;
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    gap: 4px;
+                    font-size: 0.8125rem;
+                }
+                .dot-indicator {
+                    width: 5px;
+                    height: 5px;
+                    border-radius: 50%;
+                    background-color: #10b981;
+                }
+                .react-calendar__tile:hover {
+                    background-color: #1c1c21 !important;
+                }
+                .react-calendar__tile--active {
+                    background-color: #27272a !important;
+                    color: #3b82f6 !important;
+                    font-weight: 600;
+                }
+                .react-calendar__navigation button {
+                    color: #f4f4f5 !important;
+                    min-width: 36px;
+                    background: none;
+                    font-size: 1rem;
+                    border-radius: 6px;
+                }
+                .react-calendar__navigation button:hover {
+                    background-color: #18181b !important;
+                }
+                .react-calendar__month-view__weekdays__weekday {
+                    color: #71717a !important;
+                    text-decoration: none !important;
+                    font-weight: 500;
+                    text-transform: uppercase;
+                    font-size: 0.6875rem;
+                    padding-bottom: 8px;
+                }
+                .react-calendar__month-view__days__day--neighboringMonth {
+                    opacity: 0.25;
+                }
+            `}</style>
         </div>
     )
 }
 
 const styles = {
     container: {
-        padding: '3rem 2rem',
+        padding: '24px 32px',
+        maxWidth: '1200px',
+        margin: '0 auto',
         minHeight: '100vh',
-        maxWidth: '1400px',
-        margin: '0 auto'
+        boxSizing: 'border-box'
     },
     header: {
-        marginBottom: '3rem'
+        display: 'flex',
+        alignItems: 'flex-start',
+        justifyContent: 'space-between',
+        marginBottom: '20px',
+        borderBottom: '1px solid #27272a',
+        paddingBottom: '16px'
+    },
+    headerLeft: {
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '4px'
+    },
+    headerSub: {
+        fontSize: '0.8125rem',
+        color: '#a1a1aa'
     },
     grid: {
         display: 'grid',
         gridTemplateColumns: 'repeat(12, 1fr)',
-        gridAutoRows: 'minmax(120px, auto)',
-        gap: '1.5rem'
+        gap: '16px'
     },
     card: {
-        padding: '2rem',
+        backgroundColor: '#121215',
+        border: '1px solid #27272a',
+        borderRadius: '8px',
+        padding: '20px',
         display: 'flex',
-        flexDirection: 'column'
+        flexDirection: 'column',
+        boxSizing: 'border-box'
     },
     cardHeader: {
         display: 'flex',
         alignItems: 'center',
-        marginBottom: '2rem'
+        gap: '12px',
+        marginBottom: '16px'
     },
     iconBox: {
-        width: '44px',
-        height: '44px',
-        borderRadius: '12px',
-        background: 'rgba(255, 255, 255, 0.05)',
+        width: '32px',
+        height: '32px',
+        borderRadius: '6px',
+        backgroundColor: '#18181b',
+        border: '1px solid #27272a',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        border: '1px solid var(--glass-border)'
+        flexShrink: 0
+    },
+    cardSub: {
+        fontSize: '0.75rem',
+        color: '#71717a'
+    },
+    metricBig: {
+        fontSize: '2rem',
+        fontWeight: 600,
+        color: '#f4f4f5',
+        lineHeight: 1
+    },
+    metricSubBig: {
+        fontSize: '1.5rem',
+        fontWeight: 600,
+        color: '#f4f4f5'
+    },
+    metricCaption: {
+        fontSize: '0.75rem',
+        color: '#71717a',
+        marginTop: '6px'
     },
     progressBar: {
         width: '100%',
-        height: '10px',
-        background: 'rgba(255, 255, 255, 0.05)',
-        borderRadius: '10px',
+        height: '6px',
+        backgroundColor: '#27272a',
+        borderRadius: '3px',
         overflow: 'hidden'
-    },
-    progressFill: {
-        height: '100%',
-        background: 'linear-gradient(90deg, var(--accent-primary), var(--accent-secondary))',
-        borderRadius: '10px'
     }
-}
-
-// Inject mobile styles
-if (typeof window !== 'undefined') {
-    const style = document.createElement('style')
-    style.innerHTML = `
-        @media (max-width: 1024px) {
-            .attendance-container .bento-grid { grid-template-columns: repeat(2, 1fr) !important; }
-            .attendance-container .bento-grid > div { grid-column: span 2 !important; }
-        }
-        @media (max-width: 640px) {
-            .attendance-container { padding: 1.5rem 1rem !important; padding-bottom: 90px !important; }
-            .attendance-container .bento-grid { grid-template-columns: 1fr !important; }
-            .attendance-container .bento-grid > div { grid-column: span 1 !important; }
-            .attendance-container .react-calendar__tile { padding: 1rem 0.2rem !important; }
-        }
-    `
-    document.head.appendChild(style)
 }
 
 export default Attendance
