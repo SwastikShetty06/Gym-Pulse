@@ -77,7 +77,11 @@ export const Login = () => {
                         className="btn-secondary"
                         style={styles.demoBtn}
                         disabled={loading}
-                        onClick={() => login('pro1768207294996@gym.com', 'password123')}
+                        onClick={() => {
+                            setEmail('pro1768207294996@gym.com')
+                            setPassword('password123')
+                            login('pro1768207294996@gym.com', 'password123')
+                        }}
                     >
                         Load Verified Demo Profile
                     </button>
