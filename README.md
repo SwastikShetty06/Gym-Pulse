@@ -69,3 +69,14 @@ npm run dev
 
 The application will be live at `http://localhost:5173` (by default).
 
+### 4. Build & Deploy to GitHub Pages
+From the project root:
+```bash
+# Build the production bundle
+npm run build
+
+# Deploy to GitHub Pages (gh-pages branch)
+npm run deploy
+```
+*Alternatively, pushing to `main` automatically triggers GitHub Actions (`.github/workflows/deploy.yml`) to build and update the `gh-pages` branch.*
+

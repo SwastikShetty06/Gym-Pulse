@@ -1,11 +1,29 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react-swc'
 import { VitePWA } from 'vite-plugin-pwa'
+import fs from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+
+const copyIndexTo404 = () => ({
+    name: 'copy-index-to-404',
+    closeBundle() {
+        const distDir = path.resolve(__dirname, 'dist')
+        const indexHtml = path.join(distDir, 'index.html')
+        const notFoundHtml = path.join(distDir, '404.html')
+        if (fs.existsSync(indexHtml)) {
+            fs.copyFileSync(indexHtml, notFoundHtml)
+        }
+    }
+})
 
 // https://vitejs.dev/config/
 export default defineConfig(({ command }) => ({
     plugins: [
         react(),
+        copyIndexTo404(),
         VitePWA({
             registerType: 'autoUpdate',
             includeAssets: ['favicon.png', 'apple-touch-icon.png', 'masked-icon.svg'],
